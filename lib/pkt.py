@@ -11,7 +11,6 @@ def close():
 
 def next():
     return p.next() 
-    pass
 
 def stats():
     return p.stats()
