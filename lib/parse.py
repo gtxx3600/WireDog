@@ -101,8 +101,8 @@ def parse(lenth, data, timest):
 #    print map(ord,data)
     pkt = Pkt(lenth, data, timest)
     pkt.mac_dst, pkt.mac_src, type, data = __decode_eth(data)
-    pkt.src = mac_src
-    pkt.dst = mac_dst
+    pkt.src = pkt.mac_src
+    pkt.dst = pkt.mac_dst
 #    print pkt.mac_dst, pkt.mac_src, type
 #    print map(ord,data)
     pkt.dict['order'].append(type)
