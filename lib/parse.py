@@ -79,7 +79,7 @@ def __decode_ip(s):
     return d
 
 
-def __decode_arp(data):  
+def __decode_arp(s):  
     d = {}
     d['order'] = ['hardware type','protocol','hardware size','protocol size','opcode','sender mac address','sender ip address','target mac address','target ip address']
     d['hardware type'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[0:2])[0])
@@ -145,7 +145,7 @@ def __parse_ip_tcp(s):
     d['data']=s[d['header_len']:]
     return d
 
-def __parse_ip_udp(data):
+def __parse_ip_udp(s):
     d = {}
     d['order'] = ['src_port','dst_port','length','checksum','data']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
@@ -155,7 +155,7 @@ def __parse_ip_udp(data):
     d['data'] = s[8:]
     return d
 
-def __parse_ip_icmp(data):
+def __parse_ip_icmp(s):
     d = {}
     d['order'] = ['type','code','checksum','id','seq number','data']
     d['type'] = ord(s[0])
