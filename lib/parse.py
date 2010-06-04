@@ -37,17 +37,18 @@ def __getProtocol(data):
     if data[0:2] == '\x80\x35' : type = 'revarp'
     if data[0:2] == '\x81\x00' : type = 'vlan'
     if data[0:2] == '\x86\xdd' : type = 'ipv6'
-    return type, data[2:]
+    return type
 
 def __decode_eth(data):
     dst = ''
     src = ''
     type = ''
-    dst, data = __strfmac(data)
+    dst = __strfmac(data)
     data = data[6:]
-    src, data = __strfmac(data)
+    src = __strfmac(data)
     data = data[6:]
     type, data = __getProtocol(data)
+    data = data[2:]
     print 'decode_eth'
     print map(ord,data)
     return dst,src,type,data
