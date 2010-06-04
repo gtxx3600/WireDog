@@ -49,8 +49,6 @@ def __decode_eth(data):
     data = data[6:]
     type = __getProtocol(data)
     data = data[2:]
-    print 'decode_eth'
-    print map(ord,data)
     return dst,src,type,data
 
 def __decode_ip(s):  
