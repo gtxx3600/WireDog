@@ -64,7 +64,7 @@ def __decode_ip(s):
     d['flags']= '0x%.2X' % ((ord(s[6]) & 0xe0) >> 5)
     d['fragment_offset']= '%d' % socket.ntohs(struct.unpack('H',s[6:8])[0] & 0x1f)
     d['time to live']= '%d' % ord(s[8])
-    d['protocol']= protocols[ord(s[9])]
+    d['protocol']= ip_protocols[ord(s[9])]
     d['checksum']= '0x%.4X' % socket.ntohs(struct.unpack('H',s[10:12])[0])
     d['src_address']=pcap.ntoa(struct.unpack('i',s[12:16])[0])
     d['dst_address']=pcap.ntoa(struct.unpack('i',s[16:20])[0])
