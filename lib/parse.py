@@ -2,6 +2,7 @@
 from pkt import *
 import time
 import socket
+import struct
 import pcap
 
 protocols={socket.IPPROTO_TCP:'TCP',
@@ -19,7 +20,7 @@ def __strfmac(data):
     ret = ''
     for i in range(0,6):
         ret += '%.2x' % ord(data[i])
-        if i != 6:ret+=':'
+        if i != 5:ret+=':'
     data = data[6:]
     return ret, data
 
@@ -39,7 +40,9 @@ def __decode_eth(data):
     dst, data = __strfmac(data)
     src, data = __strfmac(data)
     type, data = __getProtocol(data)
-    return dst,src,type,data[6+6+2]
+    print 'decode_eth'
+    print map(ord,data)
+    return dst,src,type,data
 
 def __decode_ip(s):  
     d={}
@@ -48,12 +51,12 @@ def __decode_ip(s):
     d['header_len'] = (ord(s[0]) & 0x0f) * 4;
     d['dsfield']= ord(s[1])
     d['total_len']= socket.ntohs(struct.unpack('H',s[2:4])[0])
-    d['id']= '0x%.4x' % socket.ntohs(struct.unpack('H',s[4:6])[0])
-    d['flags']= '0x%.2x' % (ord(s[6]) & 0xe0) >> 5
+    d['id']= '0x%.4X' % socket.ntohs(struct.unpack('H',s[4:6])[0])
+    d['flags']= '0x%.2X' % ((ord(s[6]) & 0xe0) >> 5)
     d['fragment_offset']= '%d' % socket.ntohs(struct.unpack('H',s[6:8])[0] & 0x1f)
     d['time to live']= '%d' % ord(s[8])
     d['protocol']= protocols[ord(s[9])]
-    d['checksum']= '0x%.4x' % socket.ntohs(struct.unpack('H',s[10:12])[0])
+    d['checksum']= '0x%.4X' % socket.ntohs(struct.unpack('H',s[10:12])[0])
     d['src_address']=pcap.ntoa(struct.unpack('i',s[12:16])[0])
     d['dst_address']=pcap.ntoa(struct.unpack('i',s[16:20])[0])
     if d['header_len']>20:
@@ -61,6 +64,9 @@ def __decode_ip(s):
     else:
       d['options']=None
     d['data']=s[d['header_len']:]
+#    for key in d.keys():
+#        print key,d[key]
+#        
     return d
 
 
@@ -68,12 +74,18 @@ def __decode_arp(data):
     dict = {}
     return dict
 
-def parse(*args):
-    if len(args)!= 3 : return None
-    len, data, timest = args
-    pkt = Pkt(len, data, timest)
+def parse(lenth, data, timest):
+#    if len(args)!= 3 : 
+#        print args
+#        print len(args)
+#        return None
+#    lenth, data, timest = args
+#    print map(ord,data)
+    pkt = Pkt(lenth, data, timest)
     pkt.type = []
     pkt.mac_dst, pkt.mac_src, type, data = __decode_eth(data)
+#    print pkt.mac_dst, pkt.mac_src, type
+#    print map(ord,data)
     pkt.type.append(type)
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
@@ -102,9 +114,9 @@ def __parse_ip_tcp(s):
     d['seq number'] = socket.ntohs(struct.unpack('i',s[4:8])[0])
     d['ack number'] = socket.ntohs(struct.unpack('i',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
-    d['flags']= '0x%.2x' % ord(s[13])
+    d['flags']= '0x%.2X' % ord(s[13])
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
-    d['checksum'] = '0x%.4x' % socket.ntohs(struct.unpack('H',s[16:18])[0])
+    d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
     if d['header_len']>20:
       d['options']=s[20:d['header_len']]
     else:
@@ -119,3 +131,9 @@ def __parse_ip_udp(data):
 def __parse_ip_icmp(data):
     d = {}
     return d
+
+
+
+if __name__ == '__main__':
+    open('eth0')
+    
