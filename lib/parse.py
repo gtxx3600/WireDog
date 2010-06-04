@@ -5,9 +5,15 @@ import socket
 import struct
 import pcap
 
-protocols={socket.IPPROTO_TCP:'TCP',
+ip_protocols={
+           socket.IPPROTO_TCP:'TCP',
            socket.IPPROTO_UDP:'UDP',
            socket.IPPROTO_ICMP:'ICMP'}
+protocols = {
+             '\x08\x00':'ip',
+             '\x08\x06':'arp',
+             '\x86\xdd':'ipv6'
+             }
 
 class Pkt:
     def __init__(self, len, data, timest):
@@ -22,8 +28,7 @@ def __strfmac(data):
     for i in range(0,6):
         ret += '%.2x' % ord(data[i])
         if i != 5:ret+=':'
-    data = data[6:]
-    return ret, data
+    return ret
 
 def __getProtocol(data):
     type = ''
@@ -39,7 +44,9 @@ def __decode_eth(data):
     src = ''
     type = ''
     dst, data = __strfmac(data)
+    data = data[6:]
     src, data = __strfmac(data)
+    data = data[6:]
     type, data = __getProtocol(data)
     print 'decode_eth'
     print map(ord,data)
@@ -72,8 +79,18 @@ def __decode_ip(s):
 
 
 def __decode_arp(data):  
-    dict = {}
-    return dict
+    d = {}
+    d['order'] = ['hardware type','protocol','hardware size','protocol size','opcode','sender mac address','sender ip address','target mac address','target ip address']
+    d['hardware type'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[0:2])[0])
+    d['protocol'] = protocols[s[2:4]]
+    d['hardware size'] = ord(s[4])
+    d['protocol size'] = ord(s[5])
+    d['opcode'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['sender mac address'] =  __strfmac(s[8:])
+    d['sender ip address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
+    d['target mac address'] = __strfmac(s[18:])
+    d['target ip address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
+    return d
 
 def parse(lenth, data, timest):
 #    if len(args)!= 3 : 
@@ -107,7 +124,6 @@ def __parse_ip(pkt,data):
     
 def __parse_arp(pkt,data):    
     d = {'arp' : __decode_arp(data)}
-    pkt.dict['order'].append(d['arp']['type'])
     pkt.dict.update(d)
     
 def __parse_ip_tcp(s):
