@@ -147,10 +147,23 @@ def __parse_ip_tcp(s):
 
 def __parse_ip_udp(data):
     d = {}
+    d['order'] = ['src_port','dst_port','length','checksum','data']
+    d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
+    d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
+    d['length'] = socket.ntohs(struct.unpack('H',s[4:6])[0])
+    d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['data'] = s[8:]
     return d
 
 def __parse_ip_icmp(data):
     d = {}
+    d['order'] = ['type','code','checksum','id','seq number','data']
+    d['type'] = ord(s[0])
+    d['code'] = ord(s[1])
+    d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[2:4])[0])
+    d['id'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[4:6])[0])
+    d['seq number'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['data'] = s[8:]
     return d
 
 
