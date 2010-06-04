@@ -15,6 +15,7 @@ class Pkt:
         self.pkt_len = len
         self.data = data
         self.dict = {}
+        self.dict['order'] = []
         
 def __strfmac(data):
     ret = ''
@@ -82,11 +83,12 @@ def parse(lenth, data, timest):
 #    lenth, data, timest = args
 #    print map(ord,data)
     pkt = Pkt(lenth, data, timest)
-    pkt.type = []
     pkt.mac_dst, pkt.mac_src, type, data = __decode_eth(data)
+    pkt.src = mac_src
+    pkt.dst = mac_dst
 #    print pkt.mac_dst, pkt.mac_src, type
 #    print map(ord,data)
-    pkt.type.append(type)
+    pkt.dict['order'].append(type)
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
     
@@ -95,7 +97,9 @@ def parse(lenth, data, timest):
 def __parse_ip(pkt,data):    
     d = {'ip' : __decode_ip(data)}
     ip_type = d['ip']['protocol']
-    pkt.type.append(ip_type)
+    pkt.src = d['ip']['src_address']
+    pkt.dst = d['ip']['dst_address']
+    pkt.dict['order'].append(ip_type)
     if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(d['ip']['data'])
     if ip_type == 'UDP': d[ip_type] = __parse_ip_udp(d['ip']['data'])
     if ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(d['ip']['data'])
@@ -103,7 +107,7 @@ def __parse_ip(pkt,data):
     
 def __parse_arp(pkt,data):    
     d = {'arp' : __decode_arp(data)}
-    pkt.type.append(d['arp']['type'])
+    pkt.dict['order'].append(d['arp']['type'])
     pkt.dict.update(d)
     
 def __parse_ip_tcp(s):
