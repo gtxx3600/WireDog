@@ -47,7 +47,7 @@ def __decode_eth(data):
     data = data[6:]
     src = __strfmac(data)
     data = data[6:]
-    type, data = __getProtocol(data)
+    type = __getProtocol(data)
     data = data[2:]
     print 'decode_eth'
     print map(ord,data)
