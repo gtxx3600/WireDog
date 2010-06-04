@@ -130,8 +130,8 @@ def __parse_ip_tcp(s):
     d['order'] = ['src_port','dst_port','seq number','ack number','header_len','flags','window size','checksum','options','data']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
-    d['seq number'] = socket.ntohs(struct.unpack('i',s[4:8])[0])
-    d['ack number'] = socket.ntohs(struct.unpack('i',s[8:12])[0])
+    d['seq number'] = (struct.unpack('I',s[4:8])[0])
+    d['ack number'] = (struct.unpack('I',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
     d['flags']= '0x%.2X' % ord(s[13])
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
