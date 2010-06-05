@@ -26,6 +26,8 @@ protocols = {
              '\x08\x06':'arp',
              '\x86\xdd':'ipv6'
              }
+stream_pool = {}
+
 
 class Pkt:
     def __init__(self, len, data, timest):
@@ -34,6 +36,16 @@ class Pkt:
         self.data = data
         self.dict = {}
         self.dict['order'] = []
+        
+class PoolEntry:
+    def __init__(self, pkt, seq, ack, mss):
+        self.pkts = [pkt]
+        self.a = pkt.dict['ip']['src_address']
+        self.b = pkt.dict['ip']['dst_address']
+        self.seq_base_a = seq
+        self.ack_base_a = ack
+        self.mss = mss
+        
         
 def __strfmac(data):
     ret = ''
@@ -49,7 +61,7 @@ def __getProtocol(data):
     elif data[0:2] == '\x80\x35' : type = 'revarp'
     elif data[0:2] == '\x81\x00' : type = 'vlan'
     elif data[0:2] == '\x86\xdd' : type = 'ipv6'
-    else :type = 'Unsupport'
+    else :type = 'Unknown'
     return type
 
 def __decode_eth(data):
@@ -88,9 +100,7 @@ def __decode_ip(s):
     else:
         d['options']=None
     d['data']=s[d['header_len']:]
-#    for key in d.keys():
-#        print key,d[key]
-#        
+
     return d
 
 
@@ -123,13 +133,16 @@ def parse(lenth, data, timest):
     pkt.dst = pkt.mac_dst
     pkt.id = parse.count
     parse.count += 1
-#    print pkt.mac_dst, pkt.mac_src, type
-#    print map(ord,data)
     pkt.dict['order'].append(type)
+    pkt.data_len = lenth - 14
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
     if type == 'ipv6' : __parse_ipv6(pkt, data)
-    
+#    pkt.data_len = 14
+#    for t in pkt.dict['order']:
+#        if i != 'Unknown' and i != 'arp':
+#            pkt.data_len += pkt.dict[t]['header_len']
+            
     return pkt
 
 def clearcount():
@@ -142,27 +155,33 @@ def __parse_ip(pkt,data):
     pkt.src = d['ip']['src_address']
     pkt.dst = d['ip']['dst_address']
     pkt.dict['order'].append(ip_type)
-    if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(d['ip']['data'])
-    if ip_type == 'UDP': d[ip_type] = __parse_ip_udp(d['ip']['data'])
-    if ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(d['ip']['data'])
+    pkt.data_len -= d['ip']['header_len']
+    if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(pkt,d['ip']['data'])
+    elif ip_type == 'UDP': d[ip_type] = __parse_ip_udp(pkt,d['ip']['data'])
+    elif ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(pkt,d['ip']['data'])
+    else :return
+
     pkt.dict.update(d)
     
 def __parse_arp(pkt,data):    
     d = {'arp' : __decode_arp(data)}
     pkt.dict.update(d)
+    pkt.data_len = 0
     
 def __parse_ipv6(pkt, data):
     d = {'ipv6' : __decode_ipv6(data)}
     pkt.dict.update(d)
     
-def __parse_ip_tcp(s):
+def __parse_ip_tcp(pkt,s):
     d = {}
     d['order'] = ['src_port','dst_port','seq number','ack number','header_len','flags','window size','checksum','options','data']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
-    d['seq number'] = (struct.unpack('I',s[4:8])[0])
-    d['ack number'] = (struct.unpack('I',s[8:12])[0])
+    d['seq_number'] = (struct.unpack('I',s[4:8])[0])
+    d['ack_number'] = (struct.unpack('I',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
+    pkt.data_len -= d['header_len']
+    
     d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(decode_flag(ord(s[13]))) )
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
@@ -176,17 +195,19 @@ def __parse_ip_tcp(s):
     d['data']=s[d['header_len']:]
     return d
 
-def __parse_ip_udp(s):
+def __parse_ip_udp(pkt,s):
     d = {}
     d['order'] = ['src_port','dst_port','length','checksum','data']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['length'] = socket.ntohs(struct.unpack('H',s[4:6])[0])
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['header_len'] = 8
+    pkt.data_len -= d['header_len']
     d['data'] = s[8:]
     return d
 
-def __parse_ip_icmp(s):
+def __parse_ip_icmp(pkt,s):
     d = {}
     d['order'] = ['type','code','checksum','id','seq number','data']
     d['type'] = ord(s[0])
@@ -194,6 +215,8 @@ def __parse_ip_icmp(s):
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['id'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[4:6])[0])
     d['seq number'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['header_len'] = 8
+    pkt.data_len -= d['header_len']
     d['data'] = s[8:]
     return d
 
