@@ -1,11 +1,11 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 
 from pkt import *
 import time
 import socket
 import struct
 import pcap
-
+from tool import *
 ip_protocols={
            socket.IPPROTO_TCP:'TCP',
            socket.IPPROTO_UDP:'UDP',
@@ -147,7 +147,7 @@ def __parse_ip_tcp(s):
     d['seq number'] = (struct.unpack('I',s[4:8])[0])
     d['ack number'] = (struct.unpack('I',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
-    d['flags']= '0x%.2X' % ord(s[13])
+    d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(decode_flag(ord(s[13]))) )
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
     if d['header_len']>20:
