@@ -4,6 +4,7 @@ from parse import *
 
 
 def searchstring(s,pkts):
+    'searchstring(s,pkts) return a dict, keys are instance of parse.Pkt, value is a tuple (global_index,data_index,string startswith s)'
     ret = {}
     for pkt in pkts:
         if pkt.__class__ is Pkt:
