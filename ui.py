@@ -2,6 +2,7 @@
 
 import gobject
 import gtk
+import os
 import pango
 import threading
 import time
@@ -34,8 +35,6 @@ class SniffThread(threading.Thread):
                     time.sleep(0.01)
                 else:
                     self.show_pkt(*n)
-            except KeyboardInterrupt:
-                break
             except:
                 import traceback
                 import sys
@@ -380,14 +379,36 @@ class MainView:
         self.__textbox_refresh(data)
         self.__treebox_refresh(pkt)
 
+class Watcher:
+    def __init__(self):
+        self.child = os.fork()
+        if self.child == 0:
+            return
+        else:
+            self.watch()
+    
+    def watch(self):
+        try:  
+            os.wait()  
+        except KeyboardInterrupt:  
+            self.kill()
+        import sys
+        sys.exit()  
+  
+    def kill(self):  
+        try:
+            import signal
+            os.kill(self.child, signal.SIGKILL)  
+        except OSError: pass  
+
 if __name__ == '__main__':
     import ctypes
     libc = ctypes.CDLL('libc.so.6')
     libc.prctl(15, 'wiredog', 0, 0, 0)
     
+    Watcher()
     m = MainView()
     gtk.gdk.threads_init()
     gtk.gdk.threads_enter()
     gtk.main()
     gtk.gdk.threads_leave()
-    
