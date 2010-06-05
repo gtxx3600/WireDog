@@ -236,29 +236,33 @@ def __parse_ip_tcp(pkt,s):
     d['window_size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
 
-    print d['header_len']
+
     d['options']=decode_option_tcp(s[20:d['header_len']])
 
     d['data']=s[d['header_len']:]
     ip = pkt.dict['ip']
-    print pkt.dict
+
     key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
     if 'SYN' in flags and not 'ACK' in flags:
         if stream_pool.has_key(key):
             print "Duplicate stream_pool_key %s" % key
+            print stream_pool
             return {'order':[]}
         stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
     elif 'SYN' in flags and 'ACK' in flags:
         if not stream_pool.has_key(key):
             print "Lack of stream_pool_key %s" % key
+            print stream_pool
             return {'order':[]}
         stream_pool[key].set_mss(d['options']['MSS'])
         stream_pool[key].addpkt(pkt,d['data'])
     else:
         if not stream_pool.has_key(key):
             print "Lack of stream_pool_key %s" % key
+            print stream_pool
             return {'order':[]}
         stream_pool[key].addpkt(pkt,d['data'])
+    print stream_pool
     return d
 
 def __parse_ip_udp(pkt,s):
@@ -288,7 +292,6 @@ def __parse_ip_icmp(pkt,s):
 
 def decode_option_tcp(s):
     d = {}
-    print map(ord,s)
     d['order'] = []
     while s:
         if s[0] == '\x01':
