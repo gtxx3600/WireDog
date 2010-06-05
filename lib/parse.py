@@ -1,3 +1,4 @@
+#!/usr/bin/env python2
 
 from pkt import *
 import time
@@ -91,25 +92,34 @@ def __decode_arp(s):
     d['target ip address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
     return d
 
+def __decode_ipv6(s):
+    d = {}
+    d['order'] = ['data']
+    d['data'] = s
+    return d
+
 def parse(lenth, data, timest):
-#    if len(args)!= 3 : 
-#        print args
-#        print len(args)
-#        return None
-#    lenth, data, timest = args
-#    print map(ord,data)
+    if not hasattr(parse,'count'):
+        parse.count = 1
     pkt = Pkt(lenth, data, timest)
     pkt.mac_dst, pkt.mac_src, type, data = __decode_eth(data)
     pkt.src = pkt.mac_src
     pkt.dst = pkt.mac_dst
+    pkt.id = parse.count
+    parse.count += 1
 #    print pkt.mac_dst, pkt.mac_src, type
 #    print map(ord,data)
     pkt.dict['order'].append(type)
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
+    if type == 'ipv6' : __parse_ipv6(pkt, data)
     
     return pkt
 
+def clearcount():
+    if hasattr(parse,'count'):
+        parse.count = 1
+        
 def __parse_ip(pkt,data):    
     d = {'ip' : __decode_ip(data)}
     ip_type = d['ip']['protocol']
@@ -123,6 +133,10 @@ def __parse_ip(pkt,data):
     
 def __parse_arp(pkt,data):    
     d = {'arp' : __decode_arp(data)}
+    pkt.dict.update(d)
+    
+def __parse_ipv6(pkt, data):
+    d = {'ipv6' : __decode_ipv6(data)}
     pkt.dict.update(d)
     
 def __parse_ip_tcp(s):

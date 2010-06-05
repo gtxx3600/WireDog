@@ -18,3 +18,15 @@ def stats():
 
 def filter(cmd):
     p.setfilter(cmd,0,0xffffffff)
+
+def dispatch(count,callback):
+    if not callable(callback):
+        print 'callback must be callable'
+        return 
+    if not count >= 0:
+        print 'count must beyond zero'
+        return
+    p.dispatch(count,callback)
+    
+def findalldevs():
+    return pcap.findalldevs()
