@@ -117,7 +117,7 @@ def __decode_eth(data):
 
 def __decode_ip(s):  
     d={}
-    d['order'] = ['version','header_len','dsfield','total_len','id','flags','fragment_offset','time_to_live','protocol','checksum','src_address','dst_address','options','data']
+    d['order'] = ['version','header_len','dsfield','total_len','id','flags','fragment_offset','time_to_live','protocol','checksum','src_address','dst_address','options']
     d['version'] = ((ord(s[0]) & 0xf0) >> 4)
     d['header_len'] = (ord(s[0]) & 0x0f) * 4;
     d['dsfield']= ord(s[1])
@@ -220,7 +220,7 @@ def __parse_ipv6(pkt, data):
     
 def __parse_ip_tcp(pkt,s):
     d = {}
-    d['order'] = ['src_port','dst_port','seq_number','ack_number','header_len','flags','window_size','checksum','options','data']
+    d['order'] = ['src_port','dst_port','seq_number','ack_number','header_len','flags','window_size','checksum','options']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['seq_number'] = (struct.unpack('I',s[4:8])[0])
@@ -259,7 +259,7 @@ def __parse_ip_tcp(pkt,s):
 
 def __parse_ip_udp(pkt,s):
     d = {}
-    d['order'] = ['src_port','dst_port','length','checksum','data']
+    d['order'] = ['src_port','dst_port','length','checksum']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['length'] = socket.ntohs(struct.unpack('H',s[4:6])[0])
@@ -271,7 +271,7 @@ def __parse_ip_udp(pkt,s):
 
 def __parse_ip_icmp(pkt,s):
     d = {}
-    d['order'] = ['type','code','checksum','id','seq_number','data']
+    d['order'] = ['type','code','checksum','id','seq_number']
     d['type'] = ord(s[0])
     d['code'] = ord(s[1])
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[2:4])[0])

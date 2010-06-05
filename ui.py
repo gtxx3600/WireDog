@@ -339,7 +339,7 @@ class MainView:
     def __treebox_refresh(self, pkt):
         self.treestore.clear()
         if pkt:
-            print pkt.dict
+#            print pkt.dict
             def build_subtree(parent, d):
                 for typ in d['order']:
                     if type(d[typ]) == dict:
