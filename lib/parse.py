@@ -15,7 +15,7 @@ ip_protocols={
               5:'ST',
               6:'TCP',
               12:'PUP',
-              17:'UCP',
+              17:'UDP',
               41:'IPv6',
               43:'IPv6-Route',
               44:'IPv6-Frag',
