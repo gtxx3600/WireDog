@@ -21,11 +21,11 @@ class SniffThread(threading.Thread):
             return
         pkt = parse(*n)
         self.disp_f(pkt)
-        self.disp_s(stats())
+#        self.disp_s(stats())
 
     def run(self):
         open(self.eth)
-        self.disp_s(stats())
+        self.disp_s()
         while self.running:
             try:
                 n = next()
@@ -47,8 +47,6 @@ class MainView:
         self.sniffThread = None
         self.timebase = None
         self.eth = None
-        
-        self.lock = threading.Lock()
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
@@ -169,8 +167,7 @@ class MainView:
         infobox.pack_start(treebox, True)
         infobox.pack_start(textbox, True)
         
-        self.statsbar = statsbar = gtk.Statusbar()
-        statsbar.stats_id = statsbar.get_context_id('stats')
+        self.statsbar = statsbar = gtk.Label()
         self.show_stats()
         statsbox = gtk.HBox()
         statsbox.pack_start(statsbar, True)
@@ -186,23 +183,20 @@ class MainView:
 
     def put(self, pkt):
         assert pkt != None
-        self.lock.acquire()
+        assert pkt.dict['order']
+        
         if self.timebase == None:
             self.timebase = pkt.timestamp
         timestamp = pkt.timestamp - self.timebase
         timestamp = '%.6f' % timestamp
         self.pktlist.append(None, [False, pkt.id, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
-        self.lock.release()
     
-    def show_stats(self, stats=(0, 0, 0)):
-        self.lock.acquire()
-        if self.sniffThread and self.sniffThread.running:
-            buf = 'Running: '
+    def show_stats(self, stats=None):
+        if stats:
+            buf = '%d packets received, %d packets dropped, %d packets dropped by interface' % stats
+            self.statsbar.set_text(buf)
         else:
-            buf = 'Stop: '
-        buf += '%d packets received, %d packets dropped, %d packets dropped by interface' % stats
-        self.statsbar.push(self.statsbar.stats_id, buf)
-        self.lock.release()
+            self.statsbar.set_text('')
     
     def __quit(self, *w):
         if self.sniffThread and self.sniffThread.isAlive():
