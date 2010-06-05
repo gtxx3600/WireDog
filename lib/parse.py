@@ -67,24 +67,26 @@ class PoolEntry:
     def synack(self,pkt,seq,ack,mss):
         set_mss(mss)
         self.B.seq_base = seq
-        self.A
+        self.A.next_seq = ack
+        self.pkts.append(pkt)
+        
     def addpkt(self,pkt,data):
-        if pkt.dict['ip']['src_address'] == A.ip :
-            c = A
-            d = B
+        if pkt.dict['ip']['src_address'] == self.A.ip :
+            c = self.A
+            d = self.B
         else:
-            c = B
-            d = A
+            c = self.B
+            d = self.A
         
         
         
         pass
 
 def __keygen(src_ip,src_port,dst_ip,dst_port):
-    if src_ip+src_port > dst_ip+dst_port :
-        return src_ip + ':' + src_port + '|' + dst_ip + ':' + dst_port
+    if src_ip + '%d' % src_port > dst_ip + '%d' % dst_port :
+        return src_ip + ':%d' % src_port + '|' + dst_ip + ':%d' % dst_port
     else:
-        return dst_ip + ':' + dst_port + '|' + src_ip + ':' + src_port      
+        return dst_ip + ':%d' % dst_port + '|' + src_ip + ':%d' % src_port      
         
 def __strfmac(data):
     ret = ''
@@ -202,6 +204,7 @@ def __parse_ip(pkt,data):
     pkt.dst = d['ip']['dst_address']
     pkt.dict['order'].append(ip_type)
     pkt.data_len -= d['ip']['header_len']
+    pkt.dict.update(d)
     if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(pkt,d['ip']['data'])
     elif ip_type == 'UDP': d[ip_type] = __parse_ip_udp(pkt,d['ip']['data'])
     elif ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(pkt,d['ip']['data'])
@@ -237,24 +240,25 @@ def __parse_ip_tcp(pkt,s):
     d['options']=decode_option_tcp(s[20:d['header_len']])
 
     d['data']=s[d['header_len']:]
-#    ip = pkt.dict['ip']
-#    key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
-#    if 'SYN' in flags and not 'ACK' in flags:
-#        if stream_pool.has_key(key):
-#            print "Duplicate stream_pool_key %s" % key
-#            return {'order':[]}
-#        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
-#    elif 'SYN' in flags and 'ACK' in flags:
-#        if not stream_pool.has_key(key):
-#            print "Lack of stream_pool_key %s" % key
-#            return {'order':[]}
-#        stream_pool[key].set_mss(d['options']['MSS'])
-#        stream_pool[key].addpkt(pkt,d['data'])
-#    else:
-#        if not stream_pool.has_key(key):
-#            print "Lack of stream_pool_key %s" % key
-#            return {'order':[]}
-#        stream_pool[key].addpkt(pkt,d['data'])
+    ip = pkt.dict['ip']
+    print pkt.dict
+    key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
+    if 'SYN' in flags and not 'ACK' in flags:
+        if stream_pool.has_key(key):
+            print "Duplicate stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
+    elif 'SYN' in flags and 'ACK' in flags:
+        if not stream_pool.has_key(key):
+            print "Lack of stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key].set_mss(d['options']['MSS'])
+        stream_pool[key].addpkt(pkt,d['data'])
+    else:
+        if not stream_pool.has_key(key):
+            print "Lack of stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key].addpkt(pkt,d['data'])
     return d
 
 def __parse_ip_udp(pkt,s):
