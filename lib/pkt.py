@@ -5,10 +5,13 @@ import pcap
 p =pcap.pcapObject()
 
 def open(eth):
-    p.open_live(eth, 65535, 1, -1)
+    p.open_live(eth, 65535, 0, -1)
 
 def close():
     p.open_dead(0,1024)
+
+def setblock():
+    p.setnonblock(False)
 
 def next():
     return p.next()

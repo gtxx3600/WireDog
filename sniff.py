@@ -80,7 +80,6 @@ if __name__=='__main__':
   #p.setnonblock(1)
   try:
     while 1:
-      print 'while'
       p.dispatch(1, print_packet)
 
     # specify 'None' to dump to dumpfile, assuming you have called
