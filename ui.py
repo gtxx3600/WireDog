@@ -49,6 +49,7 @@ class MainView:
         self.timebase = None
         self.eth = None
         self.search_string = ''
+        self.filter_string = ''
         self.hided_pkts = []
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
@@ -258,6 +259,8 @@ class MainView:
         self.sniffThread = SniffThread(self.eth, self.put, self.show_stats)
         self.sniffThread.running = True
         self.sniffThread.start()
+        if self.filter_string:
+            self.__do_filter()
         self.stopbtn.set_sensitive(True)
     
     def __stop(self, widget):
@@ -271,15 +274,22 @@ class MainView:
         self.combobox.set_sensitive(True)
     
     def __filter(self, widget):
-        cmd = widget.filterentry.get_text()
+        self.filter_string = widget.filterentry.get_text()
+        if self.sniffThread and self.sniffThread.running:
+            self.__do_filter()
+        else:
+            widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#B5FFF3"))
+    
+    def __do_filter(self):
+        cmd = self.filter_string
         try:
             if cmd:
                 filter(cmd)
-                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
+                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
             else:
-                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
+                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
         except:
-            widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
+            self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
     
     def __search(self, widget):
         to_be_remove = []
