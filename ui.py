@@ -82,6 +82,7 @@ class MainView:
         
         self.filterbtn = filterbtn = gtk.Button('filter')
         filterbtn.filterentry = filterentry = gtk.Entry()
+        filterbtn.connect('clicked', self.__filter)
         
         filterbar = gtk.HBox()
         filterbar.pack_start(filterentry, True)
@@ -239,6 +240,17 @@ class MainView:
         self.sniffThread = None
         self.startbtn.set_sensitive(True)
         self.combobox.set_sensitive(True)
+    
+    def __filter(self, widget):
+        cmd = widget.filterentry.get_text()
+        try:
+            if cmd:
+                filter(cmd)
+                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
+            else:
+                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
+        except:
+            widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
     
     def __search(self, widget):
         to_be_remove = []

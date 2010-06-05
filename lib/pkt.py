@@ -7,8 +7,11 @@ p =pcap.pcapObject()
 def open(eth):
     p.open_live(eth, 65535, 0, -1)
 
+def init():
+    p.open_dead(0, 1024)
+
 def close():
-    p.open_dead(0,1024)
+    init()
 
 def setblock():
     p.setnonblock(False)
