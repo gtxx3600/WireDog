@@ -5,7 +5,7 @@ import time
 import socket
 import struct
 import pcap
-
+from tool import *
 ip_protocols={
            socket.IPPROTO_TCP:'TCP',
            socket.IPPROTO_UDP:'UDP',
@@ -34,10 +34,11 @@ def __strfmac(data):
 def __getProtocol(data):
     type = ''
     if data[0:2] == '\x08\x00' : type = 'ip'
-    if data[0:2] == '\x08\x06' : type = 'arp'
-    if data[0:2] == '\x80\x35' : type = 'revarp'
-    if data[0:2] == '\x81\x00' : type = 'vlan'
-    if data[0:2] == '\x86\xdd' : type = 'ipv6'
+    elif data[0:2] == '\x08\x06' : type = 'arp'
+    elif data[0:2] == '\x80\x35' : type = 'revarp'
+    elif data[0:2] == '\x81\x00' : type = 'vlan'
+    elif data[0:2] == '\x86\xdd' : type = 'ipv6'
+    else :type = 'Unsupport'
     return type
 
 def __decode_eth(data):
@@ -68,9 +69,9 @@ def __decode_ip(s):
     d['src_address']=pcap.ntoa(struct.unpack('i',s[12:16])[0])
     d['dst_address']=pcap.ntoa(struct.unpack('i',s[16:20])[0])
     if d['header_len']>20:
-      d['options']=s[20:d['header_len']]
+        d['options']=s[20:d['header_len']]
     else:
-      d['options']=None
+        d['options']=None
     d['data']=s[d['header_len']:]
 #    for key in d.keys():
 #        print key,d[key]
@@ -147,13 +148,16 @@ def __parse_ip_tcp(s):
     d['seq number'] = (struct.unpack('I',s[4:8])[0])
     d['ack number'] = (struct.unpack('I',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
-    d['flags']= '0x%.2X' % ord(s[13])
+    d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(decode_flag(ord(s[13]))) )
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
     if d['header_len']>20:
-      d['options']=s[20:d['header_len']]
+        if d['header_len'] == 32:
+            d['options']=decode_options12(s[20:d['header_len']])
+        if d['header_len'] == 40:
+            d['options']=decode_options20(s[20:d['header_len']])
     else:
-      d['options']=None
+        d['options']=None
     d['data']=s[d['header_len']:]
     return d
 
@@ -179,7 +183,29 @@ def __parse_ip_icmp(s):
     return d
 
 
+def decode_option12(s):
+    d = {}
+    ret = ''
+    d['order'] = ['timestamp']
+    if s[0:4] == '\x01\x01\x08\x0a':
+        d['timestamp'] = decode_timestamp(s[2:])
+    return d
 
+def decode_option20(s):
+    d = {}
+    ret = ''
+    d['order'] = ['MSS','timestamp']
+    if s[0:2] == '\x02\x04':
+        d['MSS'] =  struct.unpack('H',s[2:4])[0]
+        d['timestamp'] = decode_timestamp(s[6:])
+    return d
+   
+def decode_timestamp(s):
+    if s[0:2] == '\x08\x0a':
+        return 'TSval %d,TSecr %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
+    else:
+        return ''
+    
 if __name__ == '__main__':
     open('eth0')
     
