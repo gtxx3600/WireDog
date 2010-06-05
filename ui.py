@@ -130,6 +130,7 @@ class MainView:
         
         def __text_cell_func(column, cell, model, iter, i):
             text = model.get_value(iter, i)
+            cell.set_property('font-desc', pango.FontDescription('Monospace 10'))
             cell.set_property('text', text)
             
         for i in range(1, 6):
@@ -152,7 +153,6 @@ class MainView:
         self.textview = textview = gtk.TextView()
         textview.set_editable(False)
         textview.set_cursor_visible(False)
-        textview.get_buffer().set_text('')
         textview.modify_font(pango.FontDescription('Monospace 10'))
         
         textscroll = gtk.ScrolledWindow()
@@ -191,12 +191,12 @@ class MainView:
             self.timebase = pkt.timestamp
         timestamp = pkt.timestamp - self.timebase
         timestamp = '%.6f' % timestamp
-        self.pktlist.append(None, [False, 0, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
+        self.pktlist.append(None, [False, pkt.id, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
         self.lock.release()
     
     def show_stats(self, stats=(0, 0, 0)):
         self.lock.acquire()
-        if self.sniffThread and self.sniffThread.isAlive():
+        if self.sniffThread and self.sniffThread.running:
             buf = 'Running: '
         else:
             buf = 'Stop: '
@@ -219,6 +219,7 @@ class MainView:
         
         widget.set_sensitive(False)
         self.combobox.set_sensitive(False)
+        clearcount()
         self.pktlist.clear()
         
         self.sniffThread = SniffThread(self.eth, self.put, self.show_stats)
