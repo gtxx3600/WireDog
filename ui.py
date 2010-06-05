@@ -83,7 +83,8 @@ class MainView:
         
         self.filterbtn = filterbtn = gtk.Button('filter')
         filterbtn.filterentry = filterentry = gtk.Entry()
-        filterbtn.connect('clicked', self.__filter)
+        filterbtn.connect('clicked', self.__filter_clicked)
+        filterentry.connect('activate', self.__filter)
         
         filterbar = gtk.HBox()
         filterbar.pack_start(filterentry, True)
@@ -91,7 +92,8 @@ class MainView:
         
         searchbtn = gtk.Button('search')
         searchbtn.searchentry = searchentry = gtk.Entry()
-        searchbtn.connect('clicked', self.__search)
+        searchbtn.connect('clicked', self.__search_clicked)
+        searchentry.connect('activate', self.__search)
         
         searchbar = gtk.HBox()
         searchbar.pack_start(searchentry, True)
@@ -273,12 +275,15 @@ class MainView:
         self.startbtn.set_sensitive(True)
         self.combobox.set_sensitive(True)
     
-    def __filter(self, widget):
-        self.filter_string = widget.filterentry.get_text()
+    def __filter_clicked(self, widget):
+        self.__filter(widget.filterentry)
+    
+    def __filter(self, entry):
+        self.filter_string = entry.get_text()
         if self.sniffThread and self.sniffThread.running:
             self.__do_filter()
         else:
-            widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#B5FFF3"))
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#B5FFF3"))
     
     def __do_filter(self):
         cmd = self.filter_string
@@ -291,7 +296,10 @@ class MainView:
         except:
             self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
     
-    def __search(self, widget):
+    def __search_clicked(self, widget):
+        self.__search(widget.searchentry)
+    
+    def __search(self, entry):
         to_be_remove = []
         to_be_add = []
         
