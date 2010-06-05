@@ -7,9 +7,20 @@ import struct
 import pcap
 from tool import *
 ip_protocols={
-           socket.IPPROTO_TCP:'TCP',
-           socket.IPPROTO_UDP:'UDP',
-           socket.IPPROTO_ICMP:'ICMP'}
+              0:'HOPOPT',
+              1:'ICMP',
+              2:'IGMP',
+              3:'GGP',
+              4:'IPv4',
+              5:'ST',
+              6:'TCP',
+              12:'PUP',
+              17:'UCP',
+              41:'IPv6',
+              43:'IPv6-Route',
+              44:'IPv6-Frag',
+              58:'IPv6-ICMP',
+           }
 protocols = {
              '\x08\x00':'ip',
              '\x08\x06':'arp',
@@ -64,7 +75,11 @@ def __decode_ip(s):
     d['flags']= '0x%.2X' % ((ord(s[6]) & 0xe0) >> 5)
     d['fragment_offset']= '%d' % socket.ntohs(struct.unpack('H',s[6:8])[0] & 0x1f)
     d['time to live']= '%d' % ord(s[8])
-    d['protocol']= ip_protocols[ord(s[9])]
+    try:
+        d['protocol']= ip_protocols[ord(s[9])]
+    except:
+        d['protocol']= 'Unknown'
+        
     d['checksum']= '0x%.4X' % socket.ntohs(struct.unpack('H',s[10:12])[0])
     d['src_address']=pcap.ntoa(struct.unpack('i',s[12:16])[0])
     d['dst_address']=pcap.ntoa(struct.unpack('i',s[16:20])[0])
