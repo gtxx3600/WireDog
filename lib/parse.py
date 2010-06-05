@@ -37,28 +37,43 @@ class Pkt:
         self.dict = {}
         self.dict['order'] = []
         
+class R_number:
+    def __init__(self,ip_addr,seq,ack):
+        self.seq_base = seq
+        self.ack_base = ack
+        self.next_seq = seq
+        self.next_ack = ack
+        self.seq = seq
+        self.ack = ack
+        self.ip = ip_addr
+    def get_seq(self):
+        return self.seq - self.seq_base
+    
+    def get_ack(self):
+        return self.ack - self.ack_base
+    
 class PoolEntry:
     def __init__(self, pkt, seq, ack, mss):
         self.pkts = [pkt]
-        self.a = pkt.dict['ip']['src_address']
-        self.b = pkt.dict['ip']['dst_address']
-        self.seq_base_a = seq
-        self.seq_base_b = 0
-        self.ack_base_a = ack
-        self.ack_base_b = 0
+        self.S = R_number(pkt.dict['ip']['src_address'],seq,-1)
+        self.D = R_number(pkt.dict['ip']['dst_address'],-1,-1)
+       
+        self.data_list = []
         self.mss = mss
-        self.next_seq_base_a = 0
-        self.next_seq_base_b = 0
-        self.next_ack_base_a = 0
-        self.next_ack_base_b = 0
         
     def set_mss(self,mss):
         if self.mss < mss:
             self.mss = mss
         
-    
-
+    def addpkt(self,pkt):
         
+        pass
+
+def __keygen(src_ip,src_port,dst_ip,dst_port):
+    if src_ip+src_port > dst_ip+dst_port :
+        return src_ip + ':' + src_port + '|' + dst_ip + ':' + dst_port
+    else:
+        return dst_ip + ':' + dst_port + '|' + src_ip + ':' + src_port      
         
 def __strfmac(data):
     ret = ''
@@ -194,18 +209,33 @@ def __parse_ip_tcp(pkt,s):
     d['ack_number'] = (struct.unpack('I',s[8:12])[0])
     d['header_len'] = (ord(s[12]) & 0xf0) * 4;
     pkt.data_len -= d['header_len']
-    
-    d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(decode_flag(ord(s[13]))) )
+    flags = decode_flag(ord(s[13]))
+
+    d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(flags) )
     d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
-    if d['header_len']>20:
-        if d['header_len'] == 32:
-            d['options']=decode_options12(s[20:d['header_len']])
-        if d['header_len'] == 40:
-            d['options']=decode_options20(s[20:d['header_len']])
-    else:
-        d['options']=None
+
+    d['options']=decode_options_tcp(s[20:d['header_len']])
+
     d['data']=s[d['header_len']:]
+    ip = pkt.dict['ip']
+    key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
+    if 'SYN' in flags and not 'ACK' in flags:
+        if stream_pool.has_key(key):
+            print "Duplicate stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
+    elif 'SYN' in flags and 'ACK' in flags:
+        if not stream_pool.has_key(key):
+            print "Lack of stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key].set_mss(d['options']['MSS'])
+        stream_pool[key].addpkt(pkt)
+    else:
+        if not stream_pool.has_key(key):
+            print "Lack of stream_pool_key %s" % key
+            return {'order':[]}
+        stream_pool[key].addpkt(pkt)
     return d
 
 def __parse_ip_udp(pkt,s):
@@ -233,24 +263,71 @@ def __parse_ip_icmp(pkt,s):
     d['data'] = s[8:]
     return d
 
-
-def decode_option12(s):
+def decode_option_tcp(s):
     d = {}
-    ret = ''
-    d['order'] = ['timestamp']
-    if s[0:4] == '\x01\x01\x08\x0a':
-        d['timestamp'] = decode_timestamp(s[2:])
+    d['order'] = []
+    while s:
+        if s[0] == '\x01':
+            s = s[1:]
+        elif s[0] == '\x02':
+            s = s[1:]
+            if s[0] == '\x04':
+                d['MSS'] =  struct.unpack('H',s[1:3])[0]
+                d['order'].append('MMS')
+                s = s[2:]
+            else:
+                print 'Decode_option: unknown situation 02%.2X' % ord(s[0])
+                s = s[1:]
+        elif s[0] == '\x03':
+            s = s[1:]
+            if s[0] == '\x03':
+                d['Window_scale'] = ord(s[1])
+                d['order'].append('Window_scale')
+                s = s[2:]
+            else:
+                print 'Decode_option: unknown situation 03%.2X' % ord(s[0])
+                s = s[1:]
+        elif s[0] == '\x04':
+            s = s[1:]
+            if s[0] == '\x02':
+                d['SACK'] = 'permitted'
+                d['order'].append('SACK')
+                s = s[1:]
+            else:
+                print 'Decode_option: unknown situation 04%.2X' % ord(s[0])
+                s = s[1:]
+        elif s[0] == '\x08':
+            s = s[1:]
+            if s[0] == '\x0a':
+                s = s[1:]
+                d['timestamp'] = 'TSval %d,TSecr %d' % ((struct.unpack('I',s[0:4])[0]),(struct.unpack('I',s[4:8])[0]))
+                d['order'].append('timestamp')
+                s = s[8:]
+            else:
+                print 'Decode_option: unknown situation 08%.2X' % ord(s[0])
+                s = s[1:]
+        else:
+            print 'Decode_option: unknown situation %.2X' % ord(s[0])
+            s = s[1:]
     return d
-
-def decode_option20(s):
-    d = {}
-    ret = ''
-    d['order'] = ['MSS','timestamp']
-    if s[0:2] == '\x02\x04':
-        d['MSS'] =  struct.unpack('H',s[2:4])[0]
-        d['timestamp'] = decode_timestamp(s[6:])
-    return d
-   
+    
+#def decode_option12(s):
+#    d = {}
+#    ret = ''
+#    d['order'] = ['timestamp']
+#    if s[0:4] == '\x01\x01\x08\x0a':
+#        d['timestamp'] = decode_timestamp(s[2:])
+#    return d
+#
+#def decode_option20(s):
+#    d = {}
+#    ret = ''
+#    d['order'] = ['MSS','timestamp']
+#    if s[0:2] == '\x02\x04':
+#        d['MSS'] =  struct.unpack('H',s[2:4])[0]
+#        d['timestamp'] = decode_timestamp(s[6:])
+#    return d
+#   
 def decode_timestamp(s):
     if s[0:2] == '\x08\x0a':
         return 'TSval %d,TSecr %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
