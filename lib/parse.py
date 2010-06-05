@@ -42,7 +42,6 @@ class R_number:
         self.seq_base = seq
         self.ack_base = ack
         self.next_seq = seq
-        self.next_ack = ack
         self.seq = seq
         self.ack = ack
         self.ip = ip_addr
@@ -55,9 +54,9 @@ class R_number:
 class PoolEntry:
     def __init__(self, pkt, seq, ack, mss):
         self.pkts = [pkt]
-        self.S = R_number(pkt.dict['ip']['src_address'],seq,-1)
-        self.D = R_number(pkt.dict['ip']['dst_address'],-1,-1)
-       
+        self.A = R_number(pkt.dict['ip']['src_address'],seq,-1)
+        self.B = R_number(pkt.dict['ip']['dst_address'],-1,-1)
+        self.B.ack_base = seq
         self.data_list = []
         self.mss = mss
         
@@ -65,7 +64,19 @@ class PoolEntry:
         if self.mss < mss:
             self.mss = mss
         
-    def addpkt(self,pkt):
+    def synack(self,pkt,seq,ack,mss):
+        set_mss(mss)
+        self.B.seq_base = seq
+        self.A
+    def addpkt(self,pkt,data):
+        if pkt.dict['ip']['src_address'] == A.ip :
+            c = A
+            d = B
+        else:
+            c = B
+            d = A
+        
+        
         
         pass
 
@@ -106,7 +117,7 @@ def __decode_eth(data):
 
 def __decode_ip(s):  
     d={}
-    d['order'] = ['version','header_len','dsfield','total_len','id','flags','fragment_offset','time to live','protocol','checksum','src_address','dst_address','options','data']
+    d['order'] = ['version','header_len','dsfield','total_len','id','flags','fragment_offset','time_to_live','protocol','checksum','src_address','dst_address','options','data']
     d['version'] = ((ord(s[0]) & 0xf0) >> 4)
     d['header_len'] = (ord(s[0]) & 0x0f) * 4;
     d['dsfield']= ord(s[1])
@@ -114,7 +125,7 @@ def __decode_ip(s):
     d['id']= '0x%.4X' % socket.ntohs(struct.unpack('H',s[4:6])[0])
     d['flags']= '0x%.2X' % ((ord(s[6]) & 0xe0) >> 5)
     d['fragment_offset']= '%d' % socket.ntohs(struct.unpack('H',s[6:8])[0] & 0x1f)
-    d['time to live']= '%d' % ord(s[8])
+    d['time_to_live']= '%d' % ord(s[8])
     try:
         d['protocol']= ip_protocols[ord(s[9])]
     except:
@@ -134,16 +145,16 @@ def __decode_ip(s):
 
 def __decode_arp(s):  
     d = {}
-    d['order'] = ['hardware type','protocol','hardware size','protocol size','opcode','sender mac address','sender ip address','target mac address','target ip address']
+    d['order'] = ['hardware type','protocol','hardware_size','protocol_size','opcode','sender_mac_address','sender_ip_address','target_mac_address','target_ip_address']
     d['hardware type'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['protocol'] = protocols[s[2:4]]
-    d['hardware size'] = ord(s[4])
-    d['protocol size'] = ord(s[5])
+    d['hardware_size'] = ord(s[4])
+    d['protocol_size'] = ord(s[5])
     d['opcode'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
-    d['sender mac address'] =  __strfmac(s[8:])
-    d['sender ip address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
-    d['target mac address'] = __strfmac(s[18:])
-    d['target ip address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
+    d['sender_mac_address'] =  __strfmac(s[8:])
+    d['sender_ip_address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
+    d['target_mac_address'] = __strfmac(s[18:])
+    d['target_ip_address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
     return d
 
 def __decode_ipv6(s):
@@ -161,8 +172,15 @@ def parse(lenth, data, timest):
     pkt.dst = pkt.mac_dst
     pkt.id = parse.count
     parse.count += 1
+    pkt.dict['order'].append('Ethernet')
+    pkt.dict['Ethernet'] = {'order':['src_mac','dst_mac','protocol'],
+                            'src_mac':pkt.src,
+                            'dst_mac':pkt.dst,
+                            'protocol':type
+                            }
     pkt.dict['order'].append(type)
     pkt.data_len = lenth - 14
+    
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
     if type == 'ipv6' : __parse_ipv6(pkt, data)
@@ -202,7 +220,7 @@ def __parse_ipv6(pkt, data):
     
 def __parse_ip_tcp(pkt,s):
     d = {}
-    d['order'] = ['src_port','dst_port','seq number','ack number','header_len','flags','window size','checksum','options','data']
+    d['order'] = ['src_port','dst_port','seq_number','ack_number','header_len','flags','window_size','checksum','options','data']
     d['src_port'] = socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['seq_number'] = (struct.unpack('I',s[4:8])[0])
@@ -230,12 +248,12 @@ def __parse_ip_tcp(pkt,s):
             print "Lack of stream_pool_key %s" % key
             return {'order':[]}
         stream_pool[key].set_mss(d['options']['MSS'])
-        stream_pool[key].addpkt(pkt)
+        stream_pool[key].addpkt(pkt,d['data'])
     else:
         if not stream_pool.has_key(key):
             print "Lack of stream_pool_key %s" % key
             return {'order':[]}
-        stream_pool[key].addpkt(pkt)
+        stream_pool[key].addpkt(pkt,d['data'])
     return d
 
 def __parse_ip_udp(pkt,s):
@@ -252,12 +270,12 @@ def __parse_ip_udp(pkt,s):
 
 def __parse_ip_icmp(pkt,s):
     d = {}
-    d['order'] = ['type','code','checksum','id','seq number','data']
+    d['order'] = ['type','code','checksum','id','seq_number','data']
     d['type'] = ord(s[0])
     d['code'] = ord(s[1])
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['id'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[4:6])[0])
-    d['seq number'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
+    d['seq_number'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
     d['header_len'] = 8
     pkt.data_len -= d['header_len']
     d['data'] = s[8:]
