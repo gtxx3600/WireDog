@@ -140,6 +140,8 @@ class MainView:
             __render = gtk.CellRendererText()
             __column = gtk.TreeViewColumn(column_heads[i])
             __column.pack_start(__render, False)
+            __column.set_resizable(True)
+            __column.set_sort_column_id(i)
             __column.set_cell_data_func(__render, __text_cell_func, i)
             listview.append_column(__column)
         
@@ -189,9 +191,15 @@ class MainView:
         
         infobox = gtk.VBox(False, 5)
         
-        infobox.pack_start(listbox, True)
-        infobox.pack_start(treebox, True)
-        infobox.pack_start(textbox, True)
+        paned1 = gtk.VPaned()
+        paned2 = gtk.VPaned()
+        
+        paned1.pack1(listbox, True, False)
+        paned1.pack2(paned2, True, False)
+        paned2.pack1(treebox, True, False)
+        paned2.pack2(textbox, True, False)
+        
+        infobox.pack_start(paned1, True)
         
         self.statsbar = statsbar = gtk.Label()
         self.show_stats()
