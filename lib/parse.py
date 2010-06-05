@@ -46,6 +46,11 @@ class PoolEntry:
         self.ack_base_a = ack
         self.mss = mss
         
+    def set_mss(self,mss):
+        if self.mss < mss:
+            self.mss = mss
+        
+        
         
 def __strfmac(data):
     ret = ''
