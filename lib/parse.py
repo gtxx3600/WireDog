@@ -292,8 +292,9 @@ def decode_option_tcp(s):
         elif s[0] == '\x02':
             s = s[1:]
             if s[0] == '\x04':
-                d['MSS'] =  struct.unpack('H',s[1:3])[0]
-                d['order'].append('MMS')
+                s = s[1:]
+                d['MSS'] =  struct.unpack('!H',s[0:2])[0]
+                d['order'].append('MSS')
                 s = s[2:]
             else:
                 print 'Decode_option: unknown situation 02%.2X' % ord(s[0])
@@ -320,7 +321,7 @@ def decode_option_tcp(s):
             s = s[1:]
             if s[0] == '\x0a':
                 s = s[1:]
-                d['timestamp'] = 'TSval %d,TSecr %d' % ((struct.unpack('I',s[0:4])[0]),(struct.unpack('I',s[4:8])[0]))
+                d['timestamp'] = 'TSval %d,TSecr %d' % ((struct.unpack('!I',s[0:4])[0]),(struct.unpack('!I',s[4:8])[0]))
                 d['order'].append('timestamp')
                 s = s[8:]
             else:
