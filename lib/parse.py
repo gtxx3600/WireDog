@@ -43,13 +43,21 @@ class PoolEntry:
         self.a = pkt.dict['ip']['src_address']
         self.b = pkt.dict['ip']['dst_address']
         self.seq_base_a = seq
+        self.seq_base_b = 0
         self.ack_base_a = ack
+        self.ack_base_b = 0
         self.mss = mss
+        self.next_seq_base_a = 0
+        self.next_seq_base_b = 0
+        self.next_ack_base_a = 0
+        self.next_ack_base_b = 0
         
     def set_mss(self,mss):
         if self.mss < mss:
             self.mss = mss
         
+    
+
         
         
 def __strfmac(data):
