@@ -34,4 +34,3 @@ def decode_flag(flag):
     
     return ret
 
-            
