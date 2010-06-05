@@ -27,3 +27,6 @@ def dispatch(count,callback):
         print 'count must beyond zero'
         return
     p.dispatch(count,callback)
+    
+def findalldevs():
+    return pcap.findalldevs()
