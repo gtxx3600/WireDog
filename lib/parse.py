@@ -34,10 +34,11 @@ def __strfmac(data):
 def __getProtocol(data):
     type = ''
     if data[0:2] == '\x08\x00' : type = 'ip'
-    if data[0:2] == '\x08\x06' : type = 'arp'
-    if data[0:2] == '\x80\x35' : type = 'revarp'
-    if data[0:2] == '\x81\x00' : type = 'vlan'
-    if data[0:2] == '\x86\xdd' : type = 'ipv6'
+    elif data[0:2] == '\x08\x06' : type = 'arp'
+    elif data[0:2] == '\x80\x35' : type = 'revarp'
+    elif data[0:2] == '\x81\x00' : type = 'vlan'
+    elif data[0:2] == '\x86\xdd' : type = 'ipv6'
+    else :type = 'Unsupport'
     return type
 
 def __decode_eth(data):
@@ -204,6 +205,7 @@ def decode_timestamp(s):
         return 'TSval %d,TSecr %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
     else:
         return ''
+    
 if __name__ == '__main__':
     open('eth0')
     
