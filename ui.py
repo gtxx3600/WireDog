@@ -2,37 +2,41 @@
 
 import gobject
 import gtk
+import pango
 import threading
 
 from lib.parse import *
 
 class SniffThread(threading.Thread):
-    def __init__(self, disp_f):
+    def __init__(self, eth, disp_f, disp_s):
         threading.Thread.__init__(self, name='sniff')
         self.running = False
         self.disp_f = disp_f
+        self.disp_s = disp_s
+        self.eth = eth
     
     def run(self):
-        open('wlan0')
+        open(self.eth)
+        self.disp_s(stats())
         while self.running:
             n = next()
             if n:
                 try:
                     pkt = parse(*n)
-                    print pkt.dict
                     self.disp_f(pkt)
+                    self.disp_s(stats())
                 except KeyboardInterrupt:
                     break
                 except:
                     import traceback
                     import sys
                     traceback.print_exc(file=sys.stderr)
-        print 'close'
         close()
 
 class MainView:
     def __init__(self):
-        self.sniffThread = SniffThread(self.put)
+        self.sniffThread = None
+        self.timebase = None
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
@@ -72,16 +76,17 @@ class MainView:
         toolbar2.pack_start(gtk.SeparatorToolItem(), False)
         toolbar2.pack_start(searchbar, True)
         
-        self.pktlist = pktlist = gtk.TreeStore(gobject.TYPE_BOOLEAN, 
+        self.pktlist = pktlist = gtk.TreeStore(
+                                gobject.TYPE_BOOLEAN, 
                                 gobject.TYPE_INT,
-                                gobject.TYPE_DOUBLE,
                                 gobject.TYPE_STRING,
                                 gobject.TYPE_STRING,
                                 gobject.TYPE_STRING,
-                                gobject.TYPE_OBJECT, 
+                                gobject.TYPE_STRING,
+                                gobject.TYPE_PYOBJECT, 
                                 )
         listview = gtk.TreeView(pktlist)
-        listview.connect('select-cursor-row', self.__select_row)
+        listview.get_selection().connect('changed', self.__select_row)
         
         column_heads = ['Save?', 'No.', 'Time', 'Source', 'Destination', 'Protocol']
         
@@ -102,7 +107,6 @@ class MainView:
         
         def __text_cell_func(column, cell, model, iter, i):
             text = model.get_value(iter, i)
-            text = str(text)
             cell.set_property('text', text)
             
         for i in range(1, 6):
@@ -122,9 +126,10 @@ class MainView:
         
         treebox = gtk.HBox()
         
-        textview = gtk.TextView()
+        self.textview = textview = gtk.TextView()
         textview.set_editable(False)
         textview.set_cursor_visible(False)
+        textview.modify_font(pango.FontDescription('Monospace 10'))
         
         textscroll = gtk.ScrolledWindow()
         textscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
@@ -140,29 +145,47 @@ class MainView:
         infobox.pack_start(treebox, True)
         infobox.pack_start(textbox, True)
         
+        self.statsbar = statsbar = gtk.Statusbar()
+        statsbar.stats_id = statsbar.get_context_id('stats')
+        statsbox = gtk.HBox()
+        statsbox.pack_start(statsbar, True)
+        
         vbox = gtk.VBox()
         vbox.pack_start(toolbar, False)
         vbox.pack_start(toolbar2, False)
         vbox.pack_start(infobox, True)
+        vbox.pack_start(statsbox, False)
         
         self.window.add(vbox)
         self.window.show_all()
 
     def put(self, pkt):
         assert pkt != None
+        print pkt.timestamp
         print pkt.dict
-        self.pktlist.append(None, [False, 0, pkt.timestamp, pkt.src, pkt.dst, pkt.dict['order'][0], pkt])
+        if self.timebase == None:
+            self.timebase = pkt.timestamp
+        timestamp = pkt.timestamp - self.timebase
+        timestamp = '%.6f' % timestamp
+        self.pktlist.append(None, [False, 0, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
+    
+    def show_stats(self, stats):
+        buf = '%d packets received, %d packets dropped, %d packets dropped by interface' % stats
+        self.statsbar.push(self.statsbar.stats_id, buf)
     
     def __quit(self, *w):
-        if self.sniffThread.running:
+        if self.sniffThread and self.sniffThread.isAlive():
             self.sniffThread.running = False
             self.sniffThread.join()
         gtk.main_quit()
     
     def __start(self, widget):
-        assert self.sniffThread.running == False
+        assert self.sniffThread == None or self.sniffThread.running == False
         
         widget.set_sensitive(False)
+        self.pktlist.clear()
+        
+        self.sniffThread = SniffThread('lo', self.put, self.show_stats)
         self.sniffThread.running = True
         self.sniffThread.start()
         self.stopbtn.set_sensitive(True)
@@ -173,10 +196,48 @@ class MainView:
         widget.set_sensitive(False)
         self.sniffThread.running = False
         self.sniffThread.join()
+        self.sniffThread = None
+        self.timebase = None
         self.startbtn.set_sensitive(True)
     
-    def __select_row(self, *w):
-        print w
+    def __textbox_refresh(self, data):
+        buffer = self.textview.get_buffer()
+        buffer.set_text('')
+        
+        hexes = map(ord, data)
+        addr = 0
+        ascii = ''
+        
+        def __try_ascii(hex):
+            if 32 <= hex < 127:
+                return chr(hex)
+            else:
+                return '.'
+        
+        for hex in hexes:
+            if addr % 0x10 == 0:
+                if ascii:
+                    buffer.insert_at_cursor('  %s\n' % ascii)
+                    ascii = ''
+                buffer.insert_at_cursor('%04X  ' % addr)
+            addr += 1
+            ascii += __try_ascii(hex)
+            buffer.insert_at_cursor('%02X ' % hex)
+        if ascii:
+            left = 0x10 - addr % 0x10
+            if left == 0x10: left = 0
+            buffer.insert_at_cursor('   ' * left)
+            buffer.insert_at_cursor('  %s\n' % ascii)
+    
+    def __select_row(self, selection):
+        (store, pathlist) = selection.get_selected_rows()
+        if pathlist == None or len(pathlist) != 1:
+            data = ''
+        else:
+            iter = store.get_iter(pathlist[0])
+            obj = store.get_value(iter, 6)
+            data = obj.data
+        self.__textbox_refresh(data)
 
 if __name__ == '__main__':
     m = MainView()
