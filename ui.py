@@ -7,6 +7,7 @@ import threading
 import time
 
 from lib.parse import *
+from lib.tool import *
 
 class SniffThread(threading.Thread):
     def __init__(self, eth, disp_f, disp_s):
@@ -30,7 +31,7 @@ class SniffThread(threading.Thread):
             try:
                 n = next()
                 if n == None:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                 else:
                     self.show_pkt(*n)
             except KeyboardInterrupt:
@@ -47,6 +48,8 @@ class MainView:
         self.sniffThread = None
         self.timebase = None
         self.eth = None
+        self.search_string = ''
+        self.hided_pkts = []
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
@@ -77,8 +80,9 @@ class MainView:
         toolbar.pack_end(combobox, False)
         toolbar.pack_end(devlabel, False)
         
-        filterbtn = gtk.Button('filter')
+        self.filterbtn = filterbtn = gtk.Button('filter')
         filterbtn.filterentry = filterentry = gtk.Entry()
+        filterbtn.connect('clicked', self.__filter)
         
         filterbar = gtk.HBox()
         filterbar.pack_start(filterentry, True)
@@ -86,6 +90,7 @@ class MainView:
         
         searchbtn = gtk.Button('search')
         searchbtn.searchentry = searchentry = gtk.Entry()
+        searchbtn.connect('clicked', self.__search)
         
         searchbar = gtk.HBox()
         searchbar.pack_start(searchentry, True)
@@ -187,6 +192,10 @@ class MainView:
         
         if self.timebase == None:
             self.timebase = pkt.timestamp
+            
+        if self.search_string and not search_in_pkt(self.search_string, pkt):
+            return
+        
         timestamp = pkt.timestamp - self.timebase
         timestamp = '%.6f' % timestamp
         self.pktlist.append(None, [False, pkt.id, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
@@ -215,6 +224,7 @@ class MainView:
         self.combobox.set_sensitive(False)
         clearcount()
         self.pktlist.clear()
+        self.timebase = None
         
         self.sniffThread = SniffThread(self.eth, self.put, self.show_stats)
         self.sniffThread.running = True
@@ -228,10 +238,46 @@ class MainView:
         self.sniffThread.running = False
         self.sniffThread.join()
         self.sniffThread = None
-        self.timebase = None
         self.startbtn.set_sensitive(True)
         self.combobox.set_sensitive(True)
     
+    def __filter(self, widget):
+        cmd = widget.filterentry.get_text()
+        try:
+            if cmd:
+                filter(cmd)
+                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
+            else:
+                widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
+        except:
+            widget.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
+    
+    def __search(self, widget):
+        to_be_remove = []
+        to_be_add = []
+        
+        def __search_in_tree(model, path, iter):
+            pkt = model.get_value(iter, 6)
+            if not search_in_pkt(self.search_string, pkt):
+                to_be_remove.append(iter)
+        
+        self.search_string = widget.searchentry.get_text()
+        if self.search_string:
+            self.pktlist.foreach(__search_in_tree)
+            for pkt in self.hided_pkts:
+                if search_in_pkt(self.search_string, pkt):
+                    to_be_add.append(pkt)
+        else:
+            to_be_add = self.hided_pkts[0:]
+        
+        for iter in to_be_remove:
+            self.hided_pkts.append(self.pktlist.get_value(iter, 6))
+            self.pktlist.remove(iter)
+        
+        for pkt in to_be_add:
+            self.hided_pkts.remove(pkt)
+            self.put(pkt)
+        
     def __textbox_refresh(self, data):
         buffer = self.textview.get_buffer()
         buffer.set_text('')
