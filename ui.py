@@ -151,7 +151,28 @@ class MainView:
         listbox = gtk.HBox()
         listbox.pack_start(listscroll, True)
         
+        self.treestore = treestore = gtk.TreeStore(
+                                  gobject.TYPE_STRING, 
+                                  gobject.TYPE_STRING,
+                                  )
+        
+        treeview = gtk.TreeView(treestore)
+        treeview.set_headers_visible(False)
+        
+        for i in range(0, 2):
+            __render = gtk.CellRendererText()
+            __column = gtk.TreeViewColumn()
+            __column.pack_start(__render, False)
+            __column.set_cell_data_func(__render, __text_cell_func, i)
+            treeview.append_column(__column)
+        
+        treescroll = gtk.ScrolledWindow()
+        treescroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
+        treescroll.set_shadow_type(gtk.SHADOW_IN)
+        treescroll.add(treeview)
+        
         treebox = gtk.HBox()
+        treebox.pack_start(treescroll, True)
         
         self.textview = textview = gtk.TextView()
         textview.set_editable(False)
@@ -166,7 +187,7 @@ class MainView:
         textbox = gtk.HBox()
         textbox.pack_start(textscroll)
         
-        infobox = gtk.VBox()
+        infobox = gtk.VBox(False, 5)
         
         infobox.pack_start(listbox, True)
         infobox.pack_start(treebox, True)
@@ -307,15 +328,31 @@ class MainView:
             buffer.insert_at_cursor('   ' * left)
             buffer.insert_at_cursor('  %s\n' % ascii)
     
+    def __treebox_refresh(self, pkt):
+        self.treestore.clear()
+        if pkt:
+            print pkt.dict
+            def build_subtree(parent, d):
+                for typ in d['order']:
+                    if type(d[typ]) == dict:
+                        t = self.treestore.append(parent, [typ, ''])
+                        build_subtree(t, d[typ])
+                    else:
+                        value = str(d[typ])
+                        self.treestore.append(parent, [typ, value])
+            build_subtree(None, pkt.dict)
+    
     def __select_row(self, selection):
         (store, pathlist) = selection.get_selected_rows()
         if pathlist == None or len(pathlist) != 1:
             data = ''
+            pkt = None
         else:
             iter = store.get_iter(pathlist[0])
-            obj = store.get_value(iter, 6)
-            data = obj.data
+            pkt = store.get_value(iter, 6)
+            data = pkt.data
         self.__textbox_refresh(data)
+        self.__treebox_refresh(pkt)
 
 if __name__ == '__main__':
     import ctypes

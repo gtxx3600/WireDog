@@ -225,35 +225,36 @@ def __parse_ip_tcp(pkt,s):
     d['dst_port'] = socket.ntohs(struct.unpack('H',s[2:4])[0])
     d['seq_number'] = (struct.unpack('I',s[4:8])[0])
     d['ack_number'] = (struct.unpack('I',s[8:12])[0])
-    d['header_len'] = (ord(s[12]) & 0xf0) * 4;
+    d['header_len'] = ((ord(s[12]) & 0xf0)>>4) * 4;
     pkt.data_len -= d['header_len']
     flags = decode_flag(ord(s[13]))
 
     d['flags']= '0x%.2X [%s]' % ( ord(s[13]), ','.join(flags) )
-    d['window size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
+    d['window_size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
 
-    d['options']=decode_options_tcp(s[20:d['header_len']])
+    print d['header_len']
+    d['options']=decode_option_tcp(s[20:d['header_len']])
 
     d['data']=s[d['header_len']:]
-    ip = pkt.dict['ip']
-    key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
-    if 'SYN' in flags and not 'ACK' in flags:
-        if stream_pool.has_key(key):
-            print "Duplicate stream_pool_key %s" % key
-            return {'order':[]}
-        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
-    elif 'SYN' in flags and 'ACK' in flags:
-        if not stream_pool.has_key(key):
-            print "Lack of stream_pool_key %s" % key
-            return {'order':[]}
-        stream_pool[key].set_mss(d['options']['MSS'])
-        stream_pool[key].addpkt(pkt,d['data'])
-    else:
-        if not stream_pool.has_key(key):
-            print "Lack of stream_pool_key %s" % key
-            return {'order':[]}
-        stream_pool[key].addpkt(pkt,d['data'])
+#    ip = pkt.dict['ip']
+#    key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
+#    if 'SYN' in flags and not 'ACK' in flags:
+#        if stream_pool.has_key(key):
+#            print "Duplicate stream_pool_key %s" % key
+#            return {'order':[]}
+#        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
+#    elif 'SYN' in flags and 'ACK' in flags:
+#        if not stream_pool.has_key(key):
+#            print "Lack of stream_pool_key %s" % key
+#            return {'order':[]}
+#        stream_pool[key].set_mss(d['options']['MSS'])
+#        stream_pool[key].addpkt(pkt,d['data'])
+#    else:
+#        if not stream_pool.has_key(key):
+#            print "Lack of stream_pool_key %s" % key
+#            return {'order':[]}
+#        stream_pool[key].addpkt(pkt,d['data'])
     return d
 
 def __parse_ip_udp(pkt,s):
@@ -283,6 +284,7 @@ def __parse_ip_icmp(pkt,s):
 
 def decode_option_tcp(s):
     d = {}
+    print map(ord,s)
     d['order'] = []
     while s:
         if s[0] == '\x01':
