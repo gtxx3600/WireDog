@@ -328,12 +328,12 @@ def decode_option_tcp(s):
 #        d['timestamp'] = decode_timestamp(s[6:])
 #    return d
 #   
-def decode_timestamp(s):
-    if s[0:2] == '\x08\x0a':
-        return 'TSval %d,TSecr %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
-    else:
-        return ''
-    
+#def decode_timestamp(s):
+#    if s[0:2] == '\x08\x0a':
+#        return 'TSval %d,TSecr %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
+#    else:
+#        return ''
+#    
 if __name__ == '__main__':
     open('eth0')
     
