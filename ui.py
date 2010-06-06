@@ -11,24 +11,34 @@ from lib.parse import *
 from lib.tool import *
 
 class SniffThread(threading.Thread):
-    def __init__(self, eth, disp_f, disp_s):
+    def __init__(self, eth, mainview):
         threading.Thread.__init__(self, name='sniff')
         self.running = False
-        self.disp_f = disp_f
-        self.disp_s = disp_s
+        self.mainview = mainview
         self.eth = eth
+        self.need_filter = False
         
     def show_pkt(self, *n):
         if not n[1]:
             return
         pkt = parse(*n)
-        self.disp_f(pkt)
+        self.mainview.put(pkt)
 #        self.disp_s(stats())
 
+    def request_filter(self):
+        self.need_filter = True
+    
+    def do_filter(self):
+        assert self.need_filter
+        self.mainview.do_filter()
+        self.need_filter = False
+
     def run(self):
-        open(self.eth)
-        self.disp_s()
+        open_live(self.eth)
+        self.mainview.show_stats()
         while self.running:
+            if self.need_filter:
+                self.do_filter()
             try:
                 n = next()
                 if n == None:
@@ -39,8 +49,61 @@ class SniffThread(threading.Thread):
                 import traceback
                 import sys
                 traceback.print_exc(file=sys.stderr)
-        self.disp_s(stats())
-        close()
+        self.mainview.show_stats(stats())
+        close_sniff()
+
+def dump_data(data):
+    buffer = ''
+    
+    hexes = map(ord, data)
+    addr = 0
+    ascii = ''
+    
+    def __try_ascii(hex):
+        if 32 <= hex < 127:
+            return chr(hex)
+        else:
+            return '.'
+    
+    for hex in hexes:
+        if addr % 0x10 == 0:
+            if ascii:
+                buffer += '  %s\n' % ascii
+                ascii = ''
+            buffer += '%04X  ' % addr
+        addr += 1
+        ascii += __try_ascii(hex)
+        buffer += '%02X ' % hex
+    if ascii:
+        left = 0x10 - addr % 0x10
+        if left == 0x10: left = 0
+        buffer += '   ' * left
+        buffer += '  %s\n' % ascii
+    return buffer
+
+def print_pkt(pkt):
+    buffer = ''
+    if pkt:
+        buffer += time.strftime('Time: %Y-%m-%d %H:%M:%S', 
+                                time.localtime(pkt.timestamp))
+        buffer += ('%.6f\n' % (pkt.timestamp - int(pkt.timestamp)))[1:]
+        def print_indent(i):
+            return '  ' * i
+        def build_subtree(indent, d):
+            buf = ''
+            for typ in d['order']:
+                buf += print_indent(indent)
+                buf += typ
+                if type(d[typ]) == dict:
+                    buf += '\n'
+                    buf += build_subtree(indent+1, d[typ])
+                else:
+                    buf += ': %s\n' % d[typ]
+            return buf
+        buffer += build_subtree(0, pkt.dict)
+        buffer += 'data:\n'
+        buffer += dump_data(pkt.data)
+    return buffer
 
 class MainView:
     def __init__(self):
@@ -64,6 +127,7 @@ class MainView:
         stopbtn.connect('clicked', self.__stop)
         
         savebtn = gtk.Button('save')
+        savebtn.connect('clicked', self.__save)
         
         devlabel = gtk.Label('Select a interface: ')
         self.combobox = combobox = gtk.combo_box_new_text()
@@ -148,7 +212,7 @@ class MainView:
             listview.append_column(__column)
         
         listscroll = gtk.ScrolledWindow()
-        listscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
+        listscroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
         listscroll.set_shadow_type(gtk.SHADOW_IN)
         listscroll.add(listview)
         
@@ -184,7 +248,7 @@ class MainView:
         textview.modify_font(pango.FontDescription('Monospace 10'))
         
         textscroll = gtk.ScrolledWindow()
-        textscroll.set_policy(gtk.POLICY_NEVER, gtk.POLICY_ALWAYS)
+        textscroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
         textscroll.set_shadow_type(gtk.SHADOW_IN)
         textscroll.add(textview)
         
@@ -238,11 +302,48 @@ class MainView:
         else:
             self.statsbar.set_text('')
     
+    def do_filter(self):
+        cmd = self.filter_string
+        try:
+            if cmd:
+                filter(cmd)
+                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
+            else:
+                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
+        except:
+            self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
+    
     def __quit(self, *w):
         if self.sniffThread and self.sniffThread.isAlive():
             self.sniffThread.running = False
             self.sniffThread.join()
         gtk.main_quit()
+    
+    def __save(self, widget):
+        fc = gtk.FileChooserDialog('Select a file to save', 
+                                   self.window,
+                                   gtk.FILE_CHOOSER_ACTION_SAVE,
+                                   (gtk.STOCK_CANCEL, gtk.RESPONSE_CANCEL,
+                                    gtk.STOCK_SAVE, gtk.RESPONSE_OK),
+                                   )
+        fc.run()
+        filename = fc.get_filename()
+        fc.destroy()
+        try:
+            with open(filename, 'w') as f:
+                for row in self.pktlist:
+                    if row[0]:
+                        f.write('#' * 20)
+                        f.write('\n')
+                        f.write(print_pkt(row[6]))
+        except IOError:
+            d = gtk.MessageDialog(self.window, 0,
+                                  gtk.MESSAGE_ERROR,
+                                  gtk.BUTTONS_CLOSE,
+                                  'Error: Can not write to file "%s"' % filename,
+                                  )
+            d.run()
+            d.destroy()
     
     def __select_dev(self, combobox):
         self.eth = combobox.get_active_text()
@@ -257,11 +358,11 @@ class MainView:
         self.pktlist.clear()
         self.timebase = None
         
-        self.sniffThread = SniffThread(self.eth, self.put, self.show_stats)
+        self.sniffThread = SniffThread(self.eth, self)
         self.sniffThread.running = True
         self.sniffThread.start()
         if self.filter_string:
-            self.__do_filter()
+            self.__request_filter()
         self.stopbtn.set_sensitive(True)
     
     def __stop(self, widget):
@@ -280,20 +381,12 @@ class MainView:
     def __filter(self, entry):
         self.filter_string = entry.get_text()
         if self.sniffThread and self.sniffThread.running:
-            self.__do_filter()
+            self.__request_filter()
         else:
             entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#B5FFF3"))
     
-    def __do_filter(self):
-        cmd = self.filter_string
-        try:
-            if cmd:
-                filter(cmd)
-                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
-            else:
-                self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
-        except:
-            self.filterbtn.filterentry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
+    def __request_filter(self):
+        self.sniffThread.request_filter()
     
     def __search_clicked(self, widget):
         self.__search(widget.searchentry)
@@ -327,31 +420,7 @@ class MainView:
     def __textbox_refresh(self, data):
         buffer = self.textview.get_buffer()
         buffer.set_text('')
-        
-        hexes = map(ord, data)
-        addr = 0
-        ascii = ''
-        
-        def __try_ascii(hex):
-            if 32 <= hex < 127:
-                return chr(hex)
-            else:
-                return '.'
-        
-        for hex in hexes:
-            if addr % 0x10 == 0:
-                if ascii:
-                    buffer.insert_at_cursor('  %s\n' % ascii)
-                    ascii = ''
-                buffer.insert_at_cursor('%04X  ' % addr)
-            addr += 1
-            ascii += __try_ascii(hex)
-            buffer.insert_at_cursor('%02X ' % hex)
-        if ascii:
-            left = 0x10 - addr % 0x10
-            if left == 0x10: left = 0
-            buffer.insert_at_cursor('   ' * left)
-            buffer.insert_at_cursor('  %s\n' % ascii)
+        buffer.insert_at_cursor(dump_data(data))
     
     def __treebox_refresh(self, pkt):
         self.treestore.clear()
@@ -378,6 +447,7 @@ class MainView:
             data = pkt.data
         self.__textbox_refresh(data)
         self.__treebox_refresh(pkt)
+        print print_pkt(pkt)
 
 class Watcher:
     def __init__(self):
