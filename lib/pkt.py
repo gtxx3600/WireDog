@@ -4,13 +4,13 @@ import pcap
 
 p =pcap.pcapObject()
 
-def open(eth):
+def open_live(eth):
     p.open_live(eth, 65535, 0, -1)
 
 def init():
     p.open_dead(0, 1024)
 
-def close():
+def close_sniff():
     init()
 
 def setblock():

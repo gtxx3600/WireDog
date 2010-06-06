@@ -27,7 +27,7 @@ protocols = {
              '\x86\xdd':'ipv6'
              }
 stream_pool = {}
-
+out_of_order = []
 
 class Pkt:
     def __init__(self, len, data, timest):
@@ -52,13 +52,16 @@ class R_number:
         return self.ack - self.ack_base
     
 class PoolEntry:
-    def __init__(self, pkt, seq, ack, mss):
+    def __init__(self, pkt, seq, ack, mss, key):
         self.pkts = [pkt]
         self.A = R_number(pkt.dict['ip']['src_address'],seq,-1)
         self.B = R_number(pkt.dict['ip']['dst_address'],-1,-1)
         self.B.ack_base = seq
         self.data_list = []
         self.mss = mss
+        self.key = key
+        self.out_of_order = []
+        self.reassemble = False
         
     def set_mss(self,mss):
         if self.mss < mss:
@@ -67,20 +70,79 @@ class PoolEntry:
     def synack(self,pkt,seq,ack,mss):
         set_mss(mss)
         self.B.seq_base = seq
+        self.B.seq = seq
+        self.B.ack = ack
         self.A.next_seq = ack
         self.pkts.append(pkt)
         
-    def addpkt(self,pkt,data):
+    def process_out_of_order(self):
+        pass
+    
+    def addpkt(self,pkt,seq,ack,data,header_len):
         if pkt.dict['ip']['src_address'] == self.A.ip :
             c = self.A
             d = self.B
         else:
             c = self.B
             d = self.A
+        if seq > c.next_seq:
+            self.out_of_order.append((pkt,seq,ack,data,header_len))
+            return
+        elif seq == c.next_seq:
+            c.seq = seq
+            c.ack = ack
+            if not d.next_seq == ack:
+                print 'next_seq not match ack'
+                print d.next_seq,ack
+                d.next_seq = ack
+            c.next_seq = c.seq + len(data)
+            
+            self.pkts.append(pkt)
+            
+            if len(data) < self.mss - header_len + 20 :
+                if self.reassemble:
+                    self.data_list.append((pkt.id,data))
+                    final = ''
+                    id_list = []
+                    for data_seg in self.data_list:
+                        id, part = data_seg
+                        id_list.append(id)
+                        final += part
+                        
+                    self.data_list = []
+                    pkt.dict['order'].append('Reassembled_data')
+                    pkt.dict['Reassembled_data'] = {
+                                                    'order':['pkt_list','data'],
+                                                    'pkt_list':id_list,
+                                                    'data':final
+                                                    }
+                    self.reassemble = False
+                                        
+            elif len(data) == self.mss - header_len + 20 :
+                if not self.reassemble : self.reassemble = True
+                self.data_list.append((pkt.id,data))
+                pkt.dict['order'].append('Part_of_reassembled_data')
+                pkt.dict['Part_of_reassembled_data'] = {
+                                                        'order':['data'],
+                                                        'data':data
+                                                        }
+                
+            else:
+                print 'ERROR:Data_len surpass MSS ' ,pkt.dict
+                return
+            
+            if self.out_of_order:
+                for i in self.out_of_order:
+                    if i[1] == c.next_seq:
+                        opkt,oseq,oack,odata,oheader_len = i
+                        self.out_of_order.remove(i)
+                        self.addpkt(opkt,oseq,oack,odata,oheader_len)
+                        break
+                    
+        else:
+            print 'Retransmit packet or error',pkt.dict
+            return 
         
-        
-        
-        pass
 
 def __keygen(src_ip,src_port,dst_ip,dst_port):
     if src_ip + '%d' % src_port > dst_ip + '%d' % dst_port :
@@ -248,20 +310,19 @@ def __parse_ip_tcp(pkt,s):
             print "Duplicate stream_pool_key %s" % key
             print stream_pool
             return {'order':[]}
-        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
+        stream_pool[key] = PoolEntry(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'],key)
     elif 'SYN' in flags and 'ACK' in flags:
         if not stream_pool.has_key(key):
             print "Lack of stream_pool_key %s" % key
             print stream_pool
             return {'order':[]}
-        stream_pool[key].set_mss(d['options']['MSS'])
-        stream_pool[key].addpkt(pkt,d['data'])
+        stream_pool[key].synack(pkt,d['seq_number'],d['ack_number'],d['options']['MSS'])
     else:
         if not stream_pool.has_key(key):
             print "Lack of stream_pool_key %s" % key
             print stream_pool
             return {'order':[]}
-        stream_pool[key].addpkt(pkt,d['data'])
+        stream_pool[key].addpkt(pkt,d['seq_number'],d['ack_number'],d['data'],d['header_len'])
     print stream_pool
     return d
 
