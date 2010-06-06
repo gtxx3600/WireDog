@@ -540,7 +540,12 @@ def __parse_ip_tcp(pkt,s):
         r = Reassemble(pkt,d)
         if not r.isFinish():
             stream_pool[key] = r
-            
+    elif d['data'].startswith('GET'):
+        if stream_pool.has_key(key):
+            print "Duplicate stream_pool_key %s" % key
+        r = Reassemble(pkt,d)
+        if not r.isFinish():
+            stream_pool[key] = r
     else:
         if stream_pool.has_key(key):
             stream_pool[key].addpkt(pkt,d)
