@@ -363,5 +363,5 @@ def decode_option_tcp(s):
 #        return ''
 #    
 if __name__ == '__main__':
-    open('eth0')
+    open_live('eth0')
     
