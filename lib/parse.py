@@ -104,6 +104,14 @@ class Reassemble:
             lastp.dict['HTTP'] = self.options
             self.options['order'].append('data')
             self.options['data'] = data
+    def dump(self):
+        print 'seq = ',self.seq
+        print 'total_len = ',self.total_length
+        print 'received_len = ',self.received_len
+        print 'options = ',self.options
+        print 'data_list = ',self.data_list
+        for i in self.data_list:
+            i[o].dump()
 #class R_number:
 #    def __init__(self,ip_addr,seq,ack):
 #        self.seq_base = seq
