@@ -82,6 +82,7 @@ def dump_data(data):
     return buffer
 
 def print_pkt(pkt):
+    return
     buffer = ''
     if pkt:
         buffer += time.strftime('Time: %Y-%m-%d %H:%M:%S', 
