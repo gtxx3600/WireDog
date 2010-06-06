@@ -91,15 +91,19 @@ class Reassemble:
     def check(self):
         if self.isFinish():
             lastp,lastd = self.data_list[-1]
+            data = ''
             for t in self.data_list:
                 p, d = t
                 if p == lastp:break
+                data += d
                 p.dict['order'].append('[TCP segment of a reassembled PDU]')
                 p.dict['[TCP segment of a reassembled PDU]'] = 'Reassembled PDU in packet %s' % lastp.id
             
+            data += lastd
             lastp.dict['order'].append('HTTP')    
             lastp.dict['HTTP'] = self.options
-    
+            self.options['order'].append('data')
+            self.options['data'] = data
 #class R_number:
 #    def __init__(self,ip_addr,seq,ack):
 #        self.seq_base = seq
