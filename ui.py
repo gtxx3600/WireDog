@@ -332,6 +332,7 @@ class MainView:
             self.timebase = pkt.timestamp
             
         if search_check and self.search_string and not is_match(self.search_string, pkt):
+            self.hided_pkts.append(pkt);
             return
         
         timestamp = pkt.timestamp - self.timebase
@@ -553,7 +554,7 @@ if __name__ == '__main__':
     
     Watcher()
     storederr = sys.stderr
-#    sys.stdout = NullPrinter()
+    sys.stdout = NullPrinter()
     m = MainView('err.log')
     gtk.gdk.threads_init()
     gtk.gdk.threads_enter()
