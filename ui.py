@@ -188,15 +188,16 @@ class MainView:
                                 gobject.TYPE_STRING,
                                 gobject.TYPE_STRING,
                                 gobject.TYPE_STRING,
+                                gobject.TYPE_STRING,
                                 gobject.TYPE_PYOBJECT, 
                                 )
         pktlist.pkt = None
-        pktlist.PKT_INDEX = 6
+        pktlist.PKT_INDEX = 7
         listview = gtk.TreeView(pktlist)
         listview.set_rules_hint(True)
         listview.get_selection().connect('changed', self.__select_row)
         
-        column_heads = ['Save?', 'No.', 'Time', 'Source', 'Destination', 'Protocol']
+        column_heads = ['Save?', 'No.', 'Time', 'Source', 'Destination', 'Protocol', 'Information']
         
         def __toggle_cell_func(column, cell, model, iter):
             b = model.get_value(iter, 0)
@@ -332,7 +333,7 @@ class MainView:
         
         timestamp = pkt.timestamp - self.timebase
         timestamp = '%.6f' % timestamp
-        self.pktlist.append(None, [False, pkt.id, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt])
+        self.pktlist.append(None, [False, pkt.id, timestamp, pkt.src, pkt.dst, pkt.dict['order'][-1], pkt.info, pkt])
     
     def show_stats(self, stats=None):
         if stats:
@@ -548,7 +549,7 @@ if __name__ == '__main__':
     
     Watcher()
     storederr = sys.stderr
-    sys.stdout = NullPrinter()
+#    sys.stdout = NullPrinter()
     m = MainView('err.log')
     gtk.gdk.threads_init()
     gtk.gdk.threads_enter()
