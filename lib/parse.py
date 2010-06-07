@@ -125,7 +125,6 @@ class Reassemble:
                 decompressed_data = gzp.read()
                 self.options['order'].append('data_decompressed')
                 self.options['data_decompressed'] = ('%d bytes %s' % (len(decompressed_data),PROMPT),decompressed_data)
-                print self.options
             lastp.dict['HTTP'] = self.options
     
     def decompress(self,data):
@@ -501,9 +500,10 @@ def __infogen(pkt):
         else:
             break
     try:
-        pkt.info = pkt.dict[i]['info']
+        pkt.info = pkt.dict[pkt.dict['order'][i]]['info']
     except:
         pkt.info = ''
+
         
 def parse(lenth, data, timest):
     if not hasattr(parse,'count'):
@@ -698,7 +698,7 @@ def decode_option_tcp(s):
                 s = s[2:]
             else:
                 print 'Decode_option: unknown situation 02%.2X' % ord(s[0])
-                print s_bak
+                print map(ord,s_bak)
                 s = s[1:]
         elif s[0] == '\x03':
             s = s[1:]
@@ -708,7 +708,7 @@ def decode_option_tcp(s):
                 s = s[2:]
             else:
                 print 'Decode_option: unknown situation 03%.2X' % ord(s[0])
-                print s_bak
+                print map(ord,s_bak)
                 s = s[1:]
         elif s[0] == '\x04':
             s = s[1:]
@@ -718,7 +718,7 @@ def decode_option_tcp(s):
                 s = s[1:]
             else:
                 print 'Decode_option: unknown situation 04%.2X' % ord(s[0])
-                print s_bak
+                print map(ord,s_bak)
                 s = s[1:]
         elif s[0] == '\x08':
             s = s[1:]
@@ -729,11 +729,11 @@ def decode_option_tcp(s):
                 s = s[8:]
             else:
                 print 'Decode_option: unknown situation 08%.2X' % ord(s[0])
-                print s_bak
+                print map(ord,s_bak)
                 s = s[1:]
         else:
             print 'Decode_option: unknown situation %.2X' % ord(s[0])
-            print s_bak
+            print map(ord,s_bak)
             s = s[1:]
     return d
     
