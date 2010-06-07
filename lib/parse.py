@@ -123,7 +123,7 @@ class Reassemble:
                 gzp = gzip.GzipFile(fileobj = stm)
                 decompressed_data = gzp.read()
                 self.options['order'].append('data_decompressed')
-                self.options['data_decompressed'] = decompressed_data
+                self.options['data_decompressed'] = ('%d bytes %s' % (len(decompressed_data),PROMPT),decompressed_data)
                 print self.options
             lastp.dict['HTTP'] = self.options
     
@@ -565,7 +565,6 @@ def __parse_ip_tcp(pkt,s):
     key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
     pkt.dict.update({'TCP':d})
     if d['data'][1].startswith('HTTP'):
-        
         if stream_pool.has_key(key):
             print "Duplicate stream_pool_key %s" % key
         r = Reassemble(pkt,d)
