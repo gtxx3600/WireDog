@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+import re
+
 def search_in_pkts(s,pkts):
     'searchstring(s,pkts) return a dict, keys are instance of parse.Pkt, value is a tuple (global_index,data_index,string startswith s)'
     ret = {}
@@ -94,7 +96,7 @@ search_map = {
               'data' : search_data,
               }
 
-def s_check(s):
+def s_check_single(s):
     if s == '':
         return True
     ret = search_string_parse(s)
@@ -104,7 +106,25 @@ def s_check(s):
         return False
     return True
 
-def is_match(s, pkt):
+def s_check(s):
+    if s == '':
+        return True
+    pattern = r'([a-zA-Z_]+\s*=\s*".*")'
+    subs = re.findall(pattern, s)
+    for sub in subs:
+        ret = s_check_single(sub)
+        if not ret:
+#            print sub
+            return False
+        s = s.replace(sub, 'True')
+    try:
+        eval(s)
+        return True
+    except SyntaxError:
+#        print s
+        return False
+
+def is_match_single(s, pkt):
     #proto ip mac port data
     ret = search_string_parse(s)
     if ret == None:
@@ -113,3 +133,11 @@ def is_match(s, pkt):
     if not search_map.has_key(key):
         return None
     return search_map[key](pkt, value)
+
+def is_match(s, pkt):
+    pattern = r'([a-zA-Z_]+\s*=\s*"[^"]*")'
+    subs = re.findall(pattern, s)
+    for sub in subs:
+        ret = is_match_single(sub, pkt)
+        s = s.replace(sub, str(ret))
+    return eval(s)

@@ -97,12 +97,16 @@ def print_pkt(pkt):
                 if type(d[typ]) == dict:
                     buf += '\n'
                     buf += build_subtree(indent+1, d[typ])
+                elif type(d[typ]) == tuple:
+                    buf += ': %s\n' % d[typ][0]
+                    buf += dump_data(d[typ][1])
                 else:
                     buf += ': %s\n' % d[typ]
             return buf
         buffer += build_subtree(0, pkt.dict)
         buffer += 'data:\n'
         buffer += dump_data(pkt.data)
+        buffer += '\n'
     return buffer
 
 class MainView:
