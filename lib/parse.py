@@ -500,7 +500,11 @@ def __infogen(pkt):
             i -= 1
         else:
             break
-    
+    try:
+        pkt.info = pkt.dict[i]['info']
+    except:
+        pkt.info = ''
+        
 def parse(lenth, data, timest):
     if not hasattr(parse,'count'):
         parse.count = 1
@@ -527,7 +531,7 @@ def parse(lenth, data, timest):
 #    for t in pkt.dict['order']:
 #        if i != 'Unknown' and i != 'arp':
 #            pkt.data_len += pkt.dict[t]['header_len']
-    
+    __infogen(pkt)
     return pkt
 
 def clearcount():
