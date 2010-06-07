@@ -3,6 +3,7 @@
 import gobject
 import gtk
 import os
+import sys
 import pango
 import threading
 import time
@@ -47,7 +48,6 @@ class SniffThread(threading.Thread):
                     self.show_pkt(*n)
             except:
                 import traceback
-                import sys
                 traceback.print_exc(file=sys.stderr)
         self.mainview.show_stats(stats())
         close_sniff()
@@ -110,13 +110,23 @@ def print_pkt(pkt):
     return buffer
 
 class MainView:
-    def __init__(self):
+    def __init__(self, logname=''):
         self.sniffThread = None
         self.timebase = None
         self.eth = None
         self.search_string = ''
         self.filter_string = ''
         self.hided_pkts = []
+        self.logfile = None
+        
+        if logname:
+            try:
+                self.logfile = open(logname, 'w')
+                sys.stderr = self.logfile
+            except IOError:
+                try: self.logfile.close()
+                except IOError: pass
+                self.logfile = None
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
@@ -181,6 +191,7 @@ class MainView:
                                 gobject.TYPE_PYOBJECT, 
                                 )
         pktlist.pkt = None
+        pktlist.PKT_INDEX = 6
         listview = gtk.TreeView(pktlist)
         listview.set_rules_hint(True)
         listview.get_selection().connect('changed', self.__select_row)
@@ -207,7 +218,7 @@ class MainView:
             cell.set_property('font-desc', pango.FontDescription('Monospace 10'))
             cell.set_property('text', text)
             
-        for i in range(1, 6):
+        for i in range(1, pktlist.PKT_INDEX):
             __render = gtk.CellRendererText()
             __column = gtk.TreeViewColumn(column_heads[i])
             __column.pack_start(__render, False)
@@ -345,6 +356,7 @@ class MainView:
         if self.sniffThread and self.sniffThread.isAlive():
             self.sniffThread.running = False
             self.sniffThread.join()
+        self.logfile.close()
         gtk.main_quit()
     
     def __save(self, widget):
@@ -363,7 +375,7 @@ class MainView:
                     if row[0]:
                         f.write('#' * 20)
                         f.write('\n')
-                        f.write(print_pkt(row[6]))
+                        f.write(print_pkt(row[self.pktlist.PKT_INDEX]))
         except IOError:
             d = gtk.MessageDialog(self.window, 0,
                                   gtk.MESSAGE_ERROR,
@@ -425,7 +437,7 @@ class MainView:
         s = self.search_string
         
         def __search_in_tree(model, path, iter):
-            pkt = model.get_value(iter, 6)
+            pkt = model.get_value(iter, self.pktlist.PKT_INDEX)
             if not is_match(s, pkt):
                 to_be_remove.append(iter)
         
@@ -438,7 +450,7 @@ class MainView:
             to_be_add = self.hided_pkts[0:]
         
         for iter in to_be_remove:
-            self.hided_pkts.append(self.pktlist.get_value(iter, 6))
+            self.hided_pkts.append(self.pktlist.get_value(iter, self.pktlist.PKT_INDEX))
             self.pktlist.remove(iter)
         
         for pkt in to_be_add:
@@ -482,7 +494,7 @@ class MainView:
             pkt = None
         else:
             iter = store.get_iter(pathlist[0])
-            pkt = store.get_value(iter, 6)
+            pkt = store.get_value(iter, self.pktlist.PKT_INDEX)
             data = pkt.data
         store.pkt = pkt
         self.textview.is_detail = False
@@ -517,14 +529,17 @@ class Watcher:
             os.wait()  
         except KeyboardInterrupt:  
             self.kill()
-        import sys
         sys.exit()  
   
     def kill(self):  
         try:
             import signal
             os.kill(self.child, signal.SIGKILL)  
-        except OSError: pass  
+        except OSError: pass
+
+class NullPrinter:
+    def write(self, s):
+        pass
 
 if __name__ == '__main__':
     import ctypes
@@ -532,8 +547,11 @@ if __name__ == '__main__':
     libc.prctl(15, 'wiredog', 0, 0, 0)
     
     Watcher()
-    m = MainView()
+    storederr = sys.stderr
+    sys.stdout = NullPrinter()
+    m = MainView('err.log')
     gtk.gdk.threads_init()
     gtk.gdk.threads_enter()
     gtk.main()
     gtk.gdk.threads_leave()
+    sys.stderr = storederr

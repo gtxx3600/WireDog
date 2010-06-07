@@ -120,8 +120,7 @@ def s_check(s):
     try:
         eval(s)
         return True
-    except SyntaxError:
-#        print s
+    except:
         return False
 
 def is_match_single(s, pkt):
