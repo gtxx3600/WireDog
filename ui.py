@@ -146,7 +146,7 @@ class MainView:
         savebtn = gtk.Button('save')
         savebtn.connect('clicked', self.__save)
         
-        devlabel = gtk.Label('Select a interface: ')
+        devlabel = gtk.Label('Select an interface: ')
         self.combobox = combobox = gtk.combo_box_new_text()
         devs = findalldevs()
         for dev in devs:
