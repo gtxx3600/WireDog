@@ -5,7 +5,10 @@ import time
 import socket
 import struct
 import pcap
+import gzip
+import StringIO
 from tool import *
+PROMPT = '[CLICK TO VIEW]'
 ip_protocols={
               0:'HOPOPT',
               1:'ICMP',
@@ -48,18 +51,19 @@ class Pkt:
 class Reassemble:
     def __init__(self,pkt,dict):
         self.seq = dict['seq_number']
-        data = dict['data']
-        title_offset = data.find('\x0d\x0a') 
-        self.title = data[:title_offset]
-        header_offset = data.find('\x0d\x0a\x0d\x0a')
-        self.header = data[title_offset + 2:header_offset + 4]
-        self.prefix_len = header_offset + 4
-
+        data = dict['data'][1]
+        self.title_offset = data.find('\x0d\x0a') 
+        self.title = data[:self.title_offset]
+        self.header_offset = data.find('\x0d\x0a\x0d\x0a')
+        self.header = data[self.title_offset + 2:self.header_offset + 4]
+        self.prefix_len = self.header_offset + 4
+        
         self.data_list = [(pkt,data)]
         options = self.header.split('\x0d\x0a')
         self.options = {'order':['HTTP']}
         self.options['HTTP'] = self.title
         self.total_length = self.prefix_len
+        self.content_encoding = 'unknown'
         for i in options:
             name_val = i.split(': ')
             if len(name_val) != 2:
@@ -69,6 +73,8 @@ class Reassemble:
             self.options[name] = val
             if name == 'Content-Length':
                 self.total_length += int(val)
+            elif name == 'Content-Encoding':
+                self.content_encoding = val 
         self.received_len = len(data)
         self.next_seq = self.seq + len(data)
         self.check()
@@ -78,8 +84,8 @@ class Reassemble:
     
     def addpkt(self,pkt,dict):
         seq = dict['seq_number']
-        data = dict['data']
-        if self.next_seq != seq:
+        data = dict['data'][1]
+        if self.next_seq != seq and seq - self.next_seq != 1:
             print 'Error seq_number not continuous ! seq : %s ; next_seq : %s' % (seq,self.next_seq)
             pkt.dump()
         self.seq = seq
@@ -92,18 +98,43 @@ class Reassemble:
         if self.isFinish():
             lastp,lastd = self.data_list[-1]
             data = ''
+            r_dict = {'order':[]}
             for t in self.data_list:
                 p, d = t
                 if p == lastp:break
+                r_dict['order'].append('packet %d'%p.id)
+                r_dict['packet %d'%p.id] = '%d bytes' % len(d)
                 data += d
                 p.dict['order'].append('[TCP segment of a reassembled PDU]')
                 p.dict['[TCP segment of a reassembled PDU]'] = 'Reassembled PDU in packet %s' % lastp.id
             
+            r_dict['order'].append('packet %d'%lastp.id)
+            r_dict['packet %d'%lastp.id] = '%d bytes' % len(lastd)
             data += lastd
+            
+                
+            lastp.dict['order'].append('[Reassembled TCP Segments]')
+            lastp.dict['[Reassembled TCP Segments]'] = r_dict
             lastp.dict['order'].append('HTTP')    
-            lastp.dict['HTTP'] = self.options
             self.options['order'].append('data')
-            self.options['data'] = data
+            self.options['data'] = ('%d bytes %s' % (len(data),PROMPT),data)
+            if self.content_encoding != 'unknown':
+                stm = StringIO.StringIO(data[self.header_offset + 4:])
+                gzp = gzip.GzipFile(fileobj = stm)
+                decompressed_data = gzp.read()
+                self.options['order'].append('data_decompressed')
+                self.options['data_decompressed'] = decompressed_data
+                print self.options
+            lastp.dict['HTTP'] = self.options
+    
+    def decompress(self,data):
+        if self.content_encoding == 'gzip':
+            try:
+                ret = zlib.decompress(data)
+                return ret
+            except:
+                return data
+            
     def dump(self):
         print 'seq = ',self.seq
         print 'total_len = ',self.total_length
@@ -434,29 +465,29 @@ def __decode_ip(s):
         d['options']=s[20:d['header_len']]
     else:
         d['options']=None
-    d['data']=s[d['header_len']:]
+    d['data']=('%d bytes %s' % (len(s[d['header_len']:]),PROMPT),s[d['header_len']:])
 
     return d
 
 
 def __decode_arp(s):  
     d = {}
-    d['order'] = ['hardware type','protocol','hardware_size','protocol_size','opcode','sender_mac_address','sender_ip_address','target_mac_address','target_ip_address']
+    d['order'] = ['hardware type','protocol','hardware_size','protocol_size','opcode','src_mac','src_address','dst_mac','dst_address']
     d['hardware type'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[0:2])[0])
     d['protocol'] = protocols[s[2:4]]
     d['hardware_size'] = ord(s[4])
     d['protocol_size'] = ord(s[5])
     d['opcode'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
-    d['sender_mac_address'] =  __strfmac(s[8:])
-    d['sender_ip_address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
-    d['target_mac_address'] = __strfmac(s[18:])
-    d['target_ip_address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
+    d['src_mac'] =  __strfmac(s[8:])
+    d['src_address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
+    d['dst_mac'] = __strfmac(s[18:])
+    d['dst_address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
     return d
 
 def __decode_ipv6(s):
     d = {}
     d['order'] = ['data']
-    d['data'] = s
+    d['data'] = ('%d bytes %s' % (len(s),PROMPT),s)
     return d
 
 def parse(lenth, data, timest):
@@ -499,9 +530,9 @@ def __parse_ip(pkt,data):
     pkt.dict['order'].append(ip_type)
     pkt.data_len -= d['ip']['header_len']
     pkt.dict.update(d)
-    if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(pkt,d['ip']['data'])
-    elif ip_type == 'UDP': d[ip_type] = __parse_ip_udp(pkt,d['ip']['data'])
-    elif ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(pkt,d['ip']['data'])
+    if ip_type == 'TCP': d[ip_type] = __parse_ip_tcp(pkt,d['ip']['data'][1])
+    elif ip_type == 'UDP': d[ip_type] = __parse_ip_udp(pkt,d['ip']['data'][1])
+    elif ip_type == 'ICMP': d[ip_type] = __parse_ip_icmp(pkt,d['ip']['data'][1])
     else :return
 
     pkt.dict.update(d)
@@ -529,18 +560,18 @@ def __parse_ip_tcp(pkt,s):
     d['window_size'] = socket.ntohs(struct.unpack('H',s[14:16])[0]) * 128
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
     d['options']=decode_option_tcp(s[20:d['header_len']])
-    d['data']=s[d['header_len']:]
+    d['data']=('%d bytes %s' % (len(s[d['header_len']:]), PROMPT), s[d['header_len']:])
     ip = pkt.dict['ip']
     key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
     pkt.dict.update({'TCP':d})
-    if d['data'].startswith('HTTP'):
+    if d['data'][1].startswith('HTTP'):
         
         if stream_pool.has_key(key):
             print "Duplicate stream_pool_key %s" % key
         r = Reassemble(pkt,d)
         if not r.isFinish():
             stream_pool[key] = r
-    elif d['data'].startswith('GET'):
+    elif d['data'][1].startswith('GET'):
         if stream_pool.has_key(key):
             print "Duplicate stream_pool_key %s" % key
         r = Reassemble(pkt,d)
@@ -585,7 +616,7 @@ def __parse_ip_udp(pkt,s):
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
     d['header_len'] = 8
     pkt.data_len -= d['header_len']
-    d['data'] = s[8:]
+    d['data'] = ('%d bytes %s' % (len(s[8:]),PROMPT),s[8:])
     return d
 
 def __parse_ip_icmp(pkt,s):
@@ -598,7 +629,7 @@ def __parse_ip_icmp(pkt,s):
     d['seq_number'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[6:8])[0])
     d['header_len'] = 8
     pkt.data_len -= d['header_len']
-    d['data'] = s[8:]
+    d['data'] = ('%d bytes %s' % (len(s[8:]),PROMPT),s[8:])
     return d
 
 def decode_option_tcp(s):
