@@ -236,13 +236,6 @@ class MainView:
         treeview.get_selection().connect('changed', self.__show_detail)
         treeview.connect('row-activated', __do_expand)
         
-        for i in range(0, 2):
-            __render = gtk.CellRendererText()
-            __column = gtk.TreeViewColumn()
-            __column.pack_start(__render, False)
-            __column.set_cell_data_func(__render, __text_cell_func, i)
-            treeview.append_column(__column)
-        
         __render = gtk.CellRendererText()
         __column = gtk.TreeViewColumn()
         __column.pack_start(__render, False)

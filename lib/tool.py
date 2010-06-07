@@ -7,10 +7,10 @@ def search_in_pkts(s,pkts):
         type = pkt.dict['order'][-1]
         if type == 'TCP' or type == 'UDP':
             d = pkt.dict[type]
-            index = d['data'].find(s)
+            index = d['data'][1].find(s)
             if index >= 0 :
                 global_index = index + 14 + pkt.dict['ip']['header_len'] + pkt.dict[type]['header_len'] 
-                ret[pkt] = (global_index,index,d['data'][index:])
+                ret[pkt] = (global_index,index,d['data'][1][index:])
                 
     return ret
 
@@ -18,10 +18,10 @@ def search_in_pkt(s,pkt):
     type = pkt.dict['order'][-1]
     if type == 'TCP' or type == 'UDP':
         d = pkt.dict[type]
-        index = d['data'].find(s)
+        index = d['data'][1].find(s)
         if index >= 0 :
             global_index = index + 14 + pkt.dict['ip']['header_len'] + pkt.dict[type]['header_len'] 
-            return (global_index,index,d['data'][index:])
+            return (global_index,index,d['data'][1][index:])
                 
     return ()
 
@@ -42,8 +42,9 @@ def decode_flag(flag):
     return ret
 
 def search_string_parse(s):
-    s = s.strip()
     s = s.split('=', 1)
+    s[0] = s[0].strip()
+    s[1] = s[1].strip()
     if len(s) != 2 or \
             not(s[1].startswith('"') and s[1].endswith('"')):
         return None
@@ -75,7 +76,9 @@ def search_key(pkt, k):
     return __search_dict(pkt.dict, k)
 
 def search_data(pkt, v):
-    return search_in_pkt(v, pkt) != None
+    if search_in_pkt(v, pkt):
+        return True
+    return False
 
 search_map = {
               'src_ip' : lambda pkt, v : search_value(pkt, 'src_address', v),
