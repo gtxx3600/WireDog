@@ -118,6 +118,7 @@ class Reassemble:
             lastp.dict['order'].append('HTTP')    
             self.options['order'].append('data')
             self.options['data'] = ('%d bytes %s' % (len(data),PROMPT),data)
+            self.options['info'] = self.title
             if self.content_encoding != 'unknown':
                 stm = StringIO.StringIO(data[self.header_offset + 4:])
                 gzp = gzip.GzipFile(fileobj = stm)
@@ -482,14 +483,24 @@ def __decode_arp(s):
     d['src_address'] = pcap.ntoa(struct.unpack('i',s[14:18])[0])
     d['dst_mac'] = __strfmac(s[18:])
     d['dst_address'] = pcap.ntoa(struct.unpack('i',s[24:28])[0])
+    d['info'] = 'Who has %s ? Tell %s' % (d['dst_address'],d['src_address'])
     return d
 
 def __decode_ipv6(s):
     d = {}
     d['order'] = ['data']
     d['data'] = ('%d bytes %s' % (len(s),PROMPT),s)
+    d['info'] = ''
     return d
 
+def __infogen(pkt):
+    i = -1
+    while True:
+        if pkt.dict['order'][i].startswith('['):
+            i -= 1
+        else:
+            break
+    
 def parse(lenth, data, timest):
     if not hasattr(parse,'count'):
         parse.count = 1
@@ -503,7 +514,8 @@ def parse(lenth, data, timest):
     pkt.dict['Ethernet'] = {'order':['src_mac','dst_mac','protocol'],
                             'src_mac':pkt.src,
                             'dst_mac':pkt.dst,
-                            'protocol':type
+                            'protocol':type,
+                            'info':''
                             }
     pkt.dict['order'].append(type)
     pkt.data_len = lenth - 14
@@ -515,7 +527,7 @@ def parse(lenth, data, timest):
 #    for t in pkt.dict['order']:
 #        if i != 'Unknown' and i != 'arp':
 #            pkt.data_len += pkt.dict[t]['header_len']
-            
+    
     return pkt
 
 def clearcount():
@@ -561,6 +573,7 @@ def __parse_ip_tcp(pkt,s):
     d['checksum'] = '0x%.4X' % socket.ntohs(struct.unpack('H',s[16:18])[0])
     d['options']=decode_option_tcp(s[20:d['header_len']])
     d['data']=('%d bytes %s' % (len(s[d['header_len']:]), PROMPT), s[d['header_len']:])
+    d['info'] = '%s > %s [%s] Seq = %d Len = %d' %(d['src_port'],d['dst_port'],','.join(flags),d['seq_number'],len(d['data'][1]))
     ip = pkt.dict['ip']
     key = __keygen(ip['src_address'],d['src_port'],ip['dst_address'],d['dst_port'])
     pkt.dict.update({'TCP':d})
@@ -616,9 +629,36 @@ def __parse_ip_udp(pkt,s):
     d['header_len'] = 8
     pkt.data_len -= d['header_len']
     d['data'] = ('%d bytes %s' % (len(s[8:]),PROMPT),s[8:])
+    d['info'] = 'Src port: %d Dst port: %d Len = %d' % (d['src_port'],d['dst_port'],len(d['data'][1]))
+    
     return d
 
 def __parse_ip_icmp(pkt,s):
+    type = {0:'Echo Reply',
+            8:'Echo Request',
+            3:'Dst Unreachable',
+            4:'Source Quench',
+            5:'Redirect',
+            11:'Time Exceeded',
+            12:'Parameter Problem',
+            13:'Timestamp Request',
+            14:'Timestamp Reply',
+            15:'Infomation Request',
+            16:'Infomation Reply',
+            17:'Address Mask Request',
+            18:'Address Mask Reply'
+            }
+    code = {
+            0:'Network Unreachable',
+            1:'Host Unreachable',
+            2:'Protocol Unreachable',
+            3:'Port Unreachable',
+            4:'Fragment Needed and DF set',
+            5:'Source Route Failed',
+            6:'Destination network unknown',
+            7:'Destination host unknown',
+            8:'Source host isolated'
+            }
     d = {}
     d['order'] = ['type','code','checksum','id','seq_number','data']
     d['type'] = ord(s[0])
@@ -629,6 +669,13 @@ def __parse_ip_icmp(pkt,s):
     d['header_len'] = 8
     pkt.data_len -= d['header_len']
     d['data'] = ('%d bytes %s' % (len(s[8:]),PROMPT),s[8:])
+    try:
+        d['info'] = type[d['type']]
+        if d['type'] == 3:
+            d['info'] += ' (%s)' % code[d['code']] 
+    except:
+        if not d['info']:
+            d['info'] = 'Unknown'
     return d
 
 def decode_option_tcp(s):
