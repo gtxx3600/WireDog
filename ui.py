@@ -125,11 +125,12 @@ class MainView:
                 sys.stderr = self.logfile
             except IOError:
                 try: self.logfile.close()
-                except IOError: pass
+                except: pass
                 self.logfile = None
         
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
+        self.window.set_default_size(1000, 500)
         self.window.connect('delete-event', self.__quit)
         
         self.startbtn = startbtn = gtk.Button('start')
@@ -357,7 +358,8 @@ class MainView:
         if self.sniffThread and self.sniffThread.isAlive():
             self.sniffThread.running = False
             self.sniffThread.join()
-        self.logfile.close()
+        try: self.logfile.close()
+        except: pass
         gtk.main_quit()
     
     def __save(self, widget):
