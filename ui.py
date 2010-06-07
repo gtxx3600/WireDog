@@ -82,7 +82,6 @@ def dump_data(data):
     return buffer
 
 def print_pkt(pkt):
-    return
     buffer = ''
     if pkt:
         buffer += time.strftime('Time: %Y-%m-%d %H:%M:%S', 
@@ -177,6 +176,7 @@ class MainView:
                                 gobject.TYPE_STRING,
                                 gobject.TYPE_PYOBJECT, 
                                 )
+        pktlist.pkt = None
         listview = gtk.TreeView(pktlist)
         listview.set_rules_hint(True)
         listview.get_selection().connect('changed', self.__select_row)
@@ -222,11 +222,19 @@ class MainView:
         
         self.treestore = treestore = gtk.TreeStore(
                                   gobject.TYPE_STRING, 
-                                  gobject.TYPE_STRING,
+                                  gobject.TYPE_PYOBJECT,
                                   )
+        
+        def __do_expand(treeview, path, view_column):
+            if treeview.row_expanded(path):
+                treeview.collapse_row(path)
+            else:
+                treeview.expand_to_path(path)
         
         treeview = gtk.TreeView(treestore)
         treeview.set_headers_visible(False)
+        treeview.get_selection().connect('changed', self.__show_detail)
+        treeview.connect('row-activated', __do_expand)
         
         for i in range(0, 2):
             __render = gtk.CellRendererText()
@@ -234,6 +242,28 @@ class MainView:
             __column.pack_start(__render, False)
             __column.set_cell_data_func(__render, __text_cell_func, i)
             treeview.append_column(__column)
+        
+        __render = gtk.CellRendererText()
+        __column = gtk.TreeViewColumn()
+        __column.pack_start(__render, False)
+        __column.set_cell_data_func(__render, __text_cell_func, 0)
+        treeview.append_column(__column)
+        
+        def __data_cell_func(column, cell, model, iter):
+            data = model.get_value(iter, 1)
+            if type(data) == tuple:
+                assert len(data) == 2
+                text = data[0]
+            else:
+                text = str(data)
+            cell.set_property('font-desc', pango.FontDescription('Monospace 10'))
+            cell.set_property('text', text)
+        
+        __render = gtk.CellRendererText()
+        __column = gtk.TreeViewColumn()
+        __column.pack_start(__render, False)
+        __column.set_cell_data_func(__render, __data_cell_func)
+        treeview.append_column(__column)
         
         treescroll = gtk.ScrolledWindow()
         treescroll.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_ALWAYS)
@@ -282,14 +312,14 @@ class MainView:
         self.window.add(vbox)
         self.window.show_all()
 
-    def put(self, pkt):
+    def put(self, pkt, search_check=True):
         assert pkt != None
         assert pkt.dict['order']
         
         if self.timebase == None:
             self.timebase = pkt.timestamp
             
-        if self.search_string and not search_in_pkt(self.search_string, pkt):
+        if search_check and self.search_string and not is_match(self.search_string, pkt):
             return
         
         timestamp = pkt.timestamp - self.timebase
@@ -392,20 +422,20 @@ class MainView:
     def __search_clicked(self, widget):
         self.__search(widget.searchentry)
     
-    def __search(self, entry):
+    def __do_search(self):
         to_be_remove = []
         to_be_add = []
+        s = self.search_string
         
         def __search_in_tree(model, path, iter):
             pkt = model.get_value(iter, 6)
-            if not search_in_pkt(self.search_string, pkt):
+            if not is_match(s, pkt):
                 to_be_remove.append(iter)
         
-        self.search_string = widget.searchentry.get_text()
-        if self.search_string:
+        if s:
             self.pktlist.foreach(__search_in_tree)
             for pkt in self.hided_pkts:
-                if search_in_pkt(self.search_string, pkt):
+                if is_match(s, pkt):
                     to_be_add.append(pkt)
         else:
             to_be_add = self.hided_pkts[0:]
@@ -416,7 +446,19 @@ class MainView:
         
         for pkt in to_be_add:
             self.hided_pkts.remove(pkt)
-            self.put(pkt)
+            self.put(pkt, False)
+        
+    def __search(self, entry):
+        s = entry.get_text()
+        if s_check(s):
+            self.search_string = s
+            self.__do_search()
+            if s:
+                entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#6CFF66"))
+            else:
+                entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("White"))
+        else:
+            entry.modify_base(gtk.STATE_NORMAL, gtk.gdk.color_parse("#FF6C66"))
         
     def __textbox_refresh(self, data):
         buffer = self.textview.get_buffer()
@@ -433,8 +475,7 @@ class MainView:
                         t = self.treestore.append(parent, [typ, ''])
                         build_subtree(t, d[typ])
                     else:
-                        value = str(d[typ])
-                        self.treestore.append(parent, [typ, value])
+                        self.treestore.append(parent, [typ, d[typ]])
             build_subtree(None, pkt.dict)
     
     def __select_row(self, selection):
@@ -446,9 +487,25 @@ class MainView:
             iter = store.get_iter(pathlist[0])
             pkt = store.get_value(iter, 6)
             data = pkt.data
+        store.pkt = pkt
+        self.textview.is_detail = False
         self.__textbox_refresh(data)
         self.__treebox_refresh(pkt)
-        print print_pkt(pkt)
+#        print print_pkt(pkt)
+
+    def __show_detail(self, selection):
+        (store, pathlist) = selection.get_selected_rows()
+        if pathlist == None or len(pathlist) != 1:
+            return
+        else:
+            iter = store.get_iter(pathlist[0])
+            data = store.get_value(iter, 1)
+            if type(data) == tuple:
+                self.textview.is_detail = True
+                self.__textbox_refresh(data[1])
+            elif self.textview.is_detail:
+                self.textview.is_detail = False
+                self.__textbox_refresh(self.pktlist.pkt.data)
 
 class Watcher:
     def __init__(self):

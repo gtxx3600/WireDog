@@ -41,3 +41,72 @@ def decode_flag(flag):
     
     return ret
 
+def search_string_parse(s):
+    s = s.strip()
+    s = s.split('=', 1)
+    if len(s) != 2 or \
+            not(s[1].startswith('"') and s[1].endswith('"')):
+        return None
+    key = s[0]
+    value = s[1][1:-1]
+    key = key.lower()
+    if key != 'data':
+        value = value.upper()
+    return (key, value)
+
+def search_value(pkt, k, v):
+    def __search_dict(d, k, v):
+        if d.has_key(k) and type(d[k]) == str and d[k].upper() == v:
+            return True
+        for key in d.keys():
+            if type(d[key]) == dict and __search_dict(d[key], k, v):
+                return True
+        return False
+    return __search_dict(pkt.dict, k, v)
+
+def search_key(pkt, k):
+    def __search_dict(d, k):
+        if d.has_key(k):
+            return True
+        for key in d.keys():
+            if type(d[key]) == dict and __search_dict(d[key], k):
+                return True
+        return False
+    return __search_dict(pkt.dict, k)
+
+def search_data(pkt, v):
+    return search_in_pkt(v, pkt) != None
+
+search_map = {
+              'src_ip' : lambda pkt, v : search_value(pkt, 'src_address', v),
+              'dst_ip' : lambda pkt, v : search_value(pkt, 'dst_address', v),
+              'ip' : lambda pkt, v : search_value(pkt, 'src_address', v) or search_value(pkt, 'dst_address', v),
+              'src_port' : lambda pkt, v : search_value(pkt, 'src_port', v),
+              'dst_port' : lambda pkt, v : search_value(pkt, 'dst_port', v),
+              'port' : lambda pkt, v : search_value(pkt, 'src_port', v) or search_value(pkt, 'dst_port', v),
+              'src_mac' : lambda pkt, v : search_value(pkt, 'src_mac', v),
+              'dst_mac' : lambda pkt, v : search_value(pkt, 'dst_mac', v),
+              'mac' : lambda pkt, v : search_value(pkt, 'src_mac', v) or search_value(pkt, 'dst_mac', v),
+              'proto' : search_key,
+              'data' : search_data,
+              }
+
+def s_check(s):
+    if s == '':
+        return True
+    ret = search_string_parse(s)
+    if ret == None:
+        return False
+    if not search_map.has_key(ret[0]):
+        return False
+    return True
+
+def is_match(s, pkt):
+    #proto ip mac port data
+    ret = search_string_parse(s)
+    if ret == None:
+        return None
+    key, value = ret
+    if not search_map.has_key(key):
+        return None
+    return search_map[key](pkt, value)
