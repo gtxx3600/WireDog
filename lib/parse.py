@@ -731,6 +731,7 @@ def decode_option_tcp(s):
                              }
                 d['order'].append('SACK')
                 s = s[8:]
+                print 'add sack'
             else:
                 print 'Decode_option: unknown situation 08%.2X' % ord(s[0])
                 print map(ord,s_bak)
