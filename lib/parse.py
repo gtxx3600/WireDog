@@ -720,6 +720,21 @@ def decode_option_tcp(s):
                 print 'Decode_option: unknown situation 04%.2X' % ord(s[0])
                 print map(ord,s_bak)
                 s = s[1:]
+        elif s[0] == '\x05':
+            s = s[1:]
+            if s[0] == '\x0a':
+                s = s[1:]
+                d['SACK'] = {
+                             'order':['left edge','right edge'],
+                             'left edge':'0x%.8X' % struct.unpack('!H',s[0:4])[0],
+                             'right edge': '0x%.8X' % struct.unpack('!H',s[4:8])[0]
+                             }
+                d['order'].append('SACK')
+                s = s[8:]
+            else:
+                print 'Decode_option: unknown situation 08%.2X' % ord(s[0])
+                print map(ord,s_bak)
+                s = s[1:]
         elif s[0] == '\x08':
             s = s[1:]
             if s[0] == '\x0a':
