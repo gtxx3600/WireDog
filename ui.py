@@ -131,6 +131,8 @@ class MainView:
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_size_request(800, 500)
         self.window.set_default_size(1000, 500)
+        self.window.set_position(gtk.WIN_POS_CENTER)
+        self.window.set_title('WireDog')
         self.window.connect('delete-event', self.__quit)
         
         self.startbtn = startbtn = gtk.Button('start')
