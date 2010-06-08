@@ -59,7 +59,7 @@ def search_string_parse(s):
 
 def search_value(pkt, k, v):
     def __search_dict(d, k, v):
-        if d.has_key(k) and type(d[k]) == str and d[k].upper() == v:
+        if d.has_key(k) and type(d[k]) != dict and str(d[k]).upper() == v:
             return True
         for key in d.keys():
             if type(d[key]) == dict and __search_dict(d[key], k, v):
@@ -109,7 +109,7 @@ def s_check_single(s):
 def s_check(s):
     if s == '':
         return True
-    pattern = r'([a-zA-Z_]+\s*=\s*".*")'
+    pattern = r'([a-zA-Z_]+\s*=\s*"[^"]*")'
     subs = re.findall(pattern, s)
     for sub in subs:
         ret = s_check_single(sub)
@@ -118,6 +118,7 @@ def s_check(s):
             return False
         s = s.replace(sub, 'True')
     try:
+        print s
         eval(s)
         return True
     except:

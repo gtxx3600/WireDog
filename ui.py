@@ -149,6 +149,14 @@ class MainView:
         devlabel = gtk.Label('Select an interface: ')
         self.combobox = combobox = gtk.combo_box_new_text()
         devs = findalldevs()
+        if len(devs) == 0 and os.getuid() != 0:
+            self.WarningDialog = gtk.MessageDialog(self.window, 0,
+                                  gtk.MESSAGE_WARNING,
+                                  gtk.BUTTONS_CLOSE,
+                                  'No interfaces found, please restart WireDog as root.',
+                                  )
+        else:
+            self.WarningDialog = None
         for dev in devs:
             if dev[0] != 'any':
                 combobox.append_text(dev[0])
@@ -323,6 +331,10 @@ class MainView:
         
         self.window.add(vbox)
         self.window.show_all()
+        
+        if self.WarningDialog:
+            self.WarningDialog.run()
+            self.WarningDialog.destroy()
 
     def put(self, pkt, search_check=True):
         assert pkt != None
