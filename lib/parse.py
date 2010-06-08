@@ -143,275 +143,10 @@ class Reassemble:
         print 'data_list = ',self.data_list
         for i in self.data_list:
             i[o].dump()
-#class R_number:
-#    def __init__(self,ip_addr,seq,ack):
-#        self.seq_base = seq
-#        self.ack_base = ack
-#        self.next_seq = seq
-#        self.acked = 0
-#        self.seq = seq
-#        self.ack = ack
-#        self.ip = ip_addr
-#        self.data_list = []
-#        
-#    def get_seq(self):
-#        return self.seq - self.seq_base
-#    
-#    def get_ack(self):
-#        return self.ack - self.ack_base
-#    
-#    def get_next_seq(self):
-#        return self.next_seq - self.seq_base
-#    
-#    def dump(self):
-#        print '\nDUMP OF R_number'
-#        print 'ip : %s' % self.ip
-#        print 'seq_base %s ; ack_base %s' % (self.seq_base,self.ack_base)
-#        print 'seq %s ;ack %s ' %(self.seq,self.ack)
-#        print 'R_seq %s ;R_ack %s ' %(self.get_seq(),self.get_ack())
-#        print 'next_seq %s' % self.next_seq
-#        print 'R_next_seq %s' % self.get_next_seq()
-#        print 'data_list :' ,self.data_list
-#        print 'END OF R_number\n'
-                                                  
-#class PoolEntry:
-#    'PoolEntry(pkt,dict,key,flags)'
-#    def __init__(self,pkt,dict,key,flags):
-#    
-#        self.A = R_number(pkt.dict['ip']['src_address'] + ':' + str(dict['src_port']),0,0)
-#        self.B = R_number(pkt.dict['ip']['dst_address'] + ':' + str(dict['dst_port']),0,0)
-#        self.C = self.A
-#        self.D = self.B
-#
-#        self.mss = 65535
-#        self.key = key
-#        self.out_of_order = []
-#        self.reassemble = False
-#        self.pkts = []
-#        
-#        self.addpkt(pkt,dict,flags)
-#        
-#    def set_mss(self,mss):
-#        if self.mss > mss:
-#            self.mss = mss
-#    def syn(self,pkt,d):
-#        seq = d['seq_number']
-#            
-#        self.C.seq_base = seq
-#        self.C.seq = seq
-#        self.C.next_seq = seq 
-#        self.D.ack_base = seq
-#        
-#    def ack(self,pkt,d):
-#        ack = d['ack_number']       
-#        
-#        self.C.ack = ack
-#        self.D.acked = ack - 1
-#        if self.D.next_seq != ack : 
-#            print 'Not match of ack and next_seq : ack %s ; next_seq %s ' % (ack,self.D.next_seq)
-#        
-#        
-#    def synack(self,pkt,dict):
-#        seq = dict['seq_number']
-#        ack = dict['ack_number']
-#        try:
-#            mss = d['options']['MSS']
-#        except:
-#            mss = 65535
-#        data = dict['data']
-#        header_len = dict['header_len']
-#        if pkt.dict['ip']['src_address'] == self.A.ip :
-#            c = self.A
-#            d = self.B
-#        else:
-#            c = self.B
-#            d = self.A
-#        self.set_mss(mss)
-#        c.seq_base = seq
-#        c.seq = seq
-#        c.ack = ack
-#        d.ack_base = seq
-#        d.seq_next = ack
-#        self.addpkt(pkt, seq, ack, data, header_len)
-#        
-#        
-#    def process_out_of_order(self,d):
-#        pass
-#    def process_data(self,pkt,data,header_len):
-#        if len(data) < self.mss - header_len + 20 :
-#            if self.reassemble and self.C.data_list:
-#                self.C.data_list.append((pkt.id,data))
-#                final = ''
-#                id_list = []
-#                for data_seg in self.C.data_list:
-#                    id, part = data_seg
-#                    id_list.append(id)
-#                    final += part
-#                    
-#                self.C.data_list = []
-#                pkt.dict['order'].append('Reassembled_data')
-#                pkt.dict['Reassembled_data'] = {
-#                                                'order':['pkt_list','data'],
-#                                                'pkt_list':id_list,
-#                                                'data':final
-#                                                }
-#                self.reassemble = False
-#                                    
-#        elif len(data) == self.mss - header_len + 20 :
-#            if not self.reassemble : self.reassemble = True
-#            self.C.data_list.append((pkt.id,data))
-#            pkt.dict['order'].append('Part_of_reassembled_data')
-#            pkt.dict['Part_of_reassembled_data'] = {
-#                                                    'order':['data'],
-#                                                    'data':data
-#                                                    }
-#            
-#        else:
-#            print 'ERROR:Data_len surpass MSS ' ,pkt.dict
-#            return
-#
-#    def process_pkt(self,pkt,d):
-#
-#        data = d['data']
-#        header_len = d['header_len']
-#        data_len = len(data)
-#        seq = d['seq_number']
-#
-#        if seq > self.C.next_seq :
-#            print 'seq :%s > next_seq : %s put in outoforder' % (seq,self.C.next_seq)
-#            self.out_of_order.append((pkt,d))
-#            return 1
-#        elif seq == self.C.next_seq :
-#            self.C.seq = seq
-#            self.C.next_seq = seq + data_len
-#            self.pkts.append(pkt)
-#            self.process_data(pkt, data, header_len)
-#            return 0
-#        else:
-#            print 'Retransmit packet or error'
-#            print 'seq %s ; ' % seq
-#            print 'next_seq : %s' %self.C.next_seq
-#            print pkt.dict
-#            return 1    
-#
-#    def addpkt(self,pkt,d,flags):
-#        
-#        if pkt.dict['ip']['src_address'] + ':' + str(d['src_port']) == self.A.ip :
-#            self.C = self.A
-#            self.D = self.B
-#        elif pkt.dict['ip']['src_address'] + ':' + str(d['src_port']) == self.B.ip :
-#            self.C = self.B
-#            self.D = self.A
-#        else:
-#            for i in range(0,100):
-#                print 'Fatel error!!'   
-#            self.C = self.A
-#            self.D = self.B
-#        
-#        try:
-#            mss = d['options']['MSS']
-#            self.set_mss(mss)
-#        except:
-#            print 'No MSS'
-#        
-#        data = d['data']
-#        header_len = d['header_len']
-#        
-#        if 'SYN' in flags:
-#            self.syn(pkt, d)
-#            
-#        ret = self.process_pkt(pkt,d)
-#        if 'SYN' in flags:
-#            self.C.next_seq += 1
-#        if 'ACK' in flags:
-#            self.ack(pkt, d)
-#    
-##    def addpkt(self,pkt,seq,ack,data,header_len):
-##        if pkt.dict['ip']['src_address'] == self.A.ip :
-##            c = self.A
-##            d = self.B
-##        else:
-##            c = self.B
-##            d = self.A
-##        if seq > c.next_seq:
-##            print 'seq :%s > next_seq : %s put in outoforder' % (seq,c.next_seq)
-##            self.out_of_order.append((pkt,seq,ack,data,header_len))
-##            return
-##        elif seq == c.next_seq:
-##            c.seq = seq
-##            c.ack = ack
-##            if not d.next_seq == ack:
-##                print 'next_seq not match ack'
-##                print d.next_seq,ack
-##                d.next_seq = ack
-##            c.next_seq = c.seq + len(data)
-##            
-##            self.pkts.append(pkt)
-##            
-##            if len(data) < self.mss - header_len + 20 :
-##                if self.reassemble:
-##                    self.data_list.append((pkt.id,data))
-##                    final = ''
-##                    id_list = []
-##                    for data_seg in self.data_list:
-##                        id, part = data_seg
-##                        id_list.append(id)
-##                        final += part
-##                        
-##                    self.data_list = []
-##                    pkt.dict['order'].append('Reassembled_data')
-##                    pkt.dict['Reassembled_data'] = {
-##                                                    'order':['pkt_list','data'],
-##                                                    'pkt_list':id_list,
-##                                                    'data':final
-##                                                    }
-##                    self.reassemble = False
-##                                        
-##            elif len(data) == self.mss - header_len + 20 :
-##                if not self.reassemble : self.reassemble = True
-##                self.data_list.append((pkt.id,data))
-##                pkt.dict['order'].append('Part_of_reassembled_data')
-##                pkt.dict['Part_of_reassembled_data'] = {
-##                                                        'order':['data'],
-##                                                        'data':data
-##                                                        }
-##                
-##            else:
-##                print 'ERROR:Data_len surpass MSS ' ,pkt.dict
-##                return
-##            
-##            if self.out_of_order:
-##                for i in self.out_of_order:
-##                    if i[1] == c.next_seq:
-##                        opkt,oseq,oack,odata,oheader_len = i
-##                        self.out_of_order.remove(i)
-##                        self.addpkt(opkt,oseq,oack,odata,oheader_len)
-##                        break
-##                    
-##        else:
-##            print 'Retransmit packet or error'
-##            print 'seq %s ; ack %s ;' %(seq,ack)
-##            print 'next_seq : %s' %c.next_seq
-##            pkt.dict
-##            
-##            return 
-#    def dump(self):
-#        print '\nDUMP OF PoolEntry'
-#        print 'key : ',self.key
-#        print 'MSS',self.mss
-#        print 'Reassembling: ' ,self.reassemble
-#        print 'out_of_order',self.out_of_order
-#        for i in self.out_of_order:
-#            i[0].dump()
-#        self.C.dump()
-#        self.D.dump()
-#        print 'END OF PoolEntry\n'
 
 def __keygen(src_ip,src_port,dst_ip,dst_port):
-#    if src_ip + '%d' % src_port > dst_ip + '%d' % dst_port :
     return src_ip + ':%d' % src_port + '|' + dst_ip + ':%d' % dst_port
-#    else:
-#        return dst_ip + ':%d' % dst_port + '|' + src_ip + ':%d' % src_port      
+
         
 def __strfmac(data):
     ret = ''
@@ -527,10 +262,7 @@ def parse(lenth, data, timest):
     if type == 'ip' : __parse_ip(pkt, data)
     if type == 'arp': __parse_arp(pkt, data)
     if type == 'ipv6' : __parse_ipv6(pkt, data)
-#    pkt.data_len = 14
-#    for t in pkt.dict['order']:
-#        if i != 'Unknown' and i != 'arp':
-#            pkt.data_len += pkt.dict[t]['header_len']
+
     __infogen(pkt)
     return pkt
 
@@ -598,29 +330,7 @@ def __parse_ip_tcp(pkt,s):
             stream_pool[key].addpkt(pkt,d)
             if stream_pool[key].isFinish():
                 stream_pool.pop(key)
-#    if 'SYN' in flags and not 'ACK' in flags:
-#        if stream_pool.has_key(key):
-#            print "Duplicate stream_pool_key %s" % key
-#            print stream_pool
-#            return {'order':[]}
-#        stream_pool[key] = PoolEntry(pkt,d,key,flags)
-##    elif 'SYN' in flags and 'ACK' in flags:
-##        if not stream_pool.has_key(key):
-##            print "Lack of stream_pool_key %s" % key
-##            print stream_pool
-##            stream_pool[key] = PoolEntry(pkt,d,key)
-##            return {'order':[]}
-##        stream_pool[key].addpkt(pkt,d['seq_number'],d['ack_number'],d['data'],d['header_len'])
-##        stream_pool[key].synack(pkt,d)
-#    else:
-#        if not stream_pool.has_key(key):
-#            print "Lack of stream_pool_key %s" % key
-#            print stream_pool
-#            stream_pool[key] = PoolEntry(pkt,d,key,flags)
-#            #return {'order':[]}
-#        else:
-#            stream_pool[key].addpkt(pkt,d,flags)
-#    stream_pool[key].dump()
+
     return d
 
 def __parse_ip_udp(pkt,s):
@@ -752,30 +462,8 @@ def decode_option_tcp(s):
             print map(ord,s_bak)
             s = s[1:]
     return d
-    
-#def decode_option12(s):
-#    d = {}
-#    ret = ''
-#    d['order'] = ['timestamp']
-#    if s[0:4] == '\x01\x01\x08\x0a':
-#        d['timestamp'] = decode_timestamp(s[2:])
-#    return d
-#
-#def decode_option20(s):
-#    d = {}
-#    ret = ''
-#    d['order'] = ['MSS','timestamp']
-#    if s[0:2] == '\x02\x04':
-#        d['MSS'] =  struct.unpack('H',s[2:4])[0]
-#        d['timestamp'] = decode_timestamp(s[6:])
-#    return d
-#   
-#def decode_timestamp(s):
-#    if s[0:2] == '\x08\x0a':
-#        return 'TSval %d,TSecr  %d' % ((struct.unpack('I',s[2:6])[0]),(struct.unpack('I',s[6:10])[0]))
-#    else:
-#        return ''
-#    
+
+
 if __name__ == '__main__':
     open_live('eth0')
     
